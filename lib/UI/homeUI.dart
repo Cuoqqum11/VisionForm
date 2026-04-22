@@ -30,10 +30,10 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.data});
 
   @override
-  State<HomeScreen> createState() => _HomeLogicState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeLogicState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> {
 
     void toggleSelection(int index) {
     setState(() {
