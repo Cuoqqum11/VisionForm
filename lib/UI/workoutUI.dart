@@ -47,6 +47,26 @@ class WorkoutListScreen extends StatelessWidget {
                 color: const Color(0xFF2D2F36),
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      workout.imageUrl,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[700],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.image_not_supported, color: Colors.orange),
+                        );
+                      },
+                    ),
+                  ),
                   title: Text(workout.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   subtitle: Text(workout.description, style: const TextStyle(color: Colors.grey)),
                   trailing: const Icon(Icons.chevron_right, color: Colors.orange),

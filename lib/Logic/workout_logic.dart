@@ -58,7 +58,7 @@ class WorkoutProvide extends ChangeNotifier {
           Workout(
             name: 'pullups',
             description: 'Great for back and biceps.',
-            imageUrl: 'assets/images/pullup.jpg',
+            imageUrl: 'assets/images/pullups.jpg',
             duration: 30,
             instruction: [
               'Setup',
@@ -135,9 +135,11 @@ class WorkoutProvide extends ChangeNotifier {
     notifyListeners(); // Shouts to the UI to update!
   }
 
-  void selectWorkout(Workout workout){
+  void selectWorkout(Workout? workout){
     _selectedWorkout = workout;
-    fetchHistory(workout.id!);
+    if (workout != null) {
+      fetchHistory(workout.id!);
+    }
     notifyListeners();
   }
 
