@@ -36,7 +36,7 @@ class _DietPageState extends State<DietPage> {
             child: TextField(
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                hintText: 'Enter an ingredient',
+                hintText: 'Enter your ingredient',
                 suffixIcon: IconButton(
                   icon: Icon(Icons.camera_alt),
                   onPressed: () {
@@ -51,26 +51,7 @@ class _DietPageState extends State<DietPage> {
           Expanded(
             child: Center(
               child: _image == null
-                  ? Container(
-                      width: 300,
-                      height: 500,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey),
-                      ),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.image, size: 60, color: Colors.grey),
-                          SizedBox(height: 10),
-                          Text(
-                            'Image preview here',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? const SizedBox()
                   : ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Image.file(
