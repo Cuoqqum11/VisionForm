@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Logic/workout_logic.dart';
+import 'camera_tracking_ui.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   const WorkoutDetailScreen({super.key});
@@ -144,7 +145,10 @@ class WorkoutDetailScreen extends StatelessWidget {
                       ),
                     ),
                     onPressed: () {
-                      // TODO: Add camera AI function here
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CameraTrackingUI()),
+                      );
                     },
                     icon: const Icon(Icons.camera_alt, color: Colors.black),
                     label: const Text(
