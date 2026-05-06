@@ -84,7 +84,4 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 }
-      home: HomeUI(data: data),
-    );
-  }
-} 
+
