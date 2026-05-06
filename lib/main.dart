@@ -40,7 +40,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-
+  
   @override
   void initState() {
     super.initState();
@@ -53,7 +53,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     final selectedWorkout = context.watch<WorkoutProvide>().selectedWorkout;
     final List<Widget> pages = [
-      const Center(child: Text("Home Screen", style: TextStyle(fontSize: 24))),
+      HomeUI(data: data),
       selectedWorkout == null
           ? WorkoutListScreen(
               onWorkoutSelected: () {
