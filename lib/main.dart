@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'Logic/workout_logic.dart';
 import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
+import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
 import "Logic/home_logic.dart";
 
@@ -53,7 +54,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     final selectedWorkout = context.watch<WorkoutProvide>().selectedWorkout;
     final List<Widget> pages = [
-      const Center(child: Text("Home Screen", style: TextStyle(fontSize: 24))),
+      HomeUI(data: data),
       selectedWorkout == null
           ? WorkoutListScreen(
               onWorkoutSelected: () {
@@ -63,7 +64,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               },
             )
           : const WorkoutDetailScreen(),
-      const Center(child: Text("Diet Screen", style: TextStyle(fontSize: 24))),
+      const DietPage(),
     ];
 
     return Scaffold(
