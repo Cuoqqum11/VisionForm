@@ -1,0 +1,29 @@
+name: kwon_mediapipe_landmarker
+description: Flutter plugin for MediaPipe Face and Pose Landmarker. Real-time facial expression, eye contact, and posture analysis.
+version: 0.0.3
+homepage: https://github.com/KwonGeneral/kwon_mediapipe_landmarker
+repository: https://github.com/KwonGeneral/kwon_mediapipe_landmarker
+issue_tracker: https://github.com/KwonGeneral/kwon_mediapipe_landmarker/issues
+
+environment:
+  sdk: ^3.5.0
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  plugin_platform_interface: ^2.1.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.kwon.mediapipe_landmarker
+        pluginClass: KwonMediapipeLandmarkerPlugin
+      ios:
+        pluginClass: KwonMediapipeLandmarkerPlugin
