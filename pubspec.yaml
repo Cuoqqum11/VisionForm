@@ -39,6 +39,11 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  kwon_mediapipe_landmarker: ^0.0.3
+
+dependency_overrides:
+  kwon_mediapipe_landmarker:
+    path: third_party/kwon_mediapipe_landmarker
 
 dev_dependencies:
   flutter_test:
