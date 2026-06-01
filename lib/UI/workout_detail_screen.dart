@@ -147,7 +147,12 @@ class WorkoutDetailScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const CameraTrackingUI()),
+                        MaterialPageRoute(
+                          builder: (context) => CameraTrackingUI(
+                            workoutName: workout.name,
+                            instructions: workout.instruction,
+                          ),
+                        ),
                       );
                     },
                     icon: const Icon(Icons.camera_alt, color: Colors.black),
