@@ -2,9 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:kwon_mediapipe_landmarker/kwon_mediapipe_landmarker.dart' as kwon;
 
 class CameraTrackingUI extends StatefulWidget {
-  const CameraTrackingUI({super.key});
+  const CameraTrackingUI({
+    super.key,
+    required this.workoutName,
+    required this.instructions,
+  });
+
+  final String workoutName;
+  final List<String> instructions;
 
   @override
   State<CameraTrackingUI> createState() => _CameraTrackingUIState();
@@ -14,10 +22,19 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
+  CameraLensDirection _currentLens = CameraLensDirection.back;
+
+  bool _isMediaPipeReady = false;
+  bool _isProcessingFrame = false;
+  DateTime _lastProcess = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  List<kwon.Landmark> _poseLandmarks = [];
+  int _score = 0;
 
   bool _isTracking = false;
   Timer? _timer;
   int _elapsedSeconds = 0;
+
   @override
   void initState() {
     super.initState();
@@ -51,11 +68,15 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       }
 
       final camera = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
+        (c) => c.lensDirection == _currentLens,
         orElse: () => cameras.first,
       );
 
-      _cameraController = CameraController(camera, ResolutionPreset.high);
+      _cameraController = CameraController(
+        camera,
+        ResolutionPreset.medium,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
       await _cameraController!.initialize();
 
       if (!mounted) return;
@@ -79,6 +100,8 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       _isTracking = !_isTracking;
 
       if (_isTracking) {
+        _ensureMediaPipeReady();
+        _startImageStream();
         _elapsedSeconds = 0;
         _timer?.cancel();
         _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -89,23 +112,146 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
           setState(() => _elapsedSeconds++);
         });
       } else {
+        _stopImageStream();
+        _poseLandmarks = [];
         _timer?.cancel();
         _timer = null;
       }
     });
   }
 
+  Future<void> _ensureMediaPipeReady() async {
+    if (_isMediaPipeReady) return;
+    try {
+      if (kwon.KwonMediapipeLandmarker.isInitialized) {
+        await kwon.KwonMediapipeLandmarker.dispose();
+      }
+      await kwon.KwonMediapipeLandmarker.initialize(face: false, pose: true);
+      if (!mounted) return;
+      setState(() => _isMediaPipeReady = true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isMediaPipeReady = false;
+        _poseLandmarks = [];
+      });
+      debugPrint('MediaPipe init failed: $e');
+    }
+  }
+
+  void _startImageStream() {
+    if (_cameraController == null) return;
+    try {
+      _cameraController!.startImageStream(_onCameraFrame);
+    } catch (e) {
+      debugPrint('startImageStream failed: $e');
+    }
+  }
+
+  Future<void> _stopImageStream() async {
+    try {
+      await _cameraController?.stopImageStream();
+    } catch (_) {}
+  }
+
+  Future<void> _onCameraFrame(CameraImage image) async {
+    if (!_isMediaPipeReady || _isProcessingFrame) return;
+    if (DateTime.now().difference(_lastProcess).inMilliseconds < 120) return;
+    _lastProcess = DateTime.now();
+    _isProcessingFrame = true;
+
+    try {
+      final planes = image.planes.map((p) => p.bytes).toList();
+      final bytesPerRow = image.planes.map((p) => p.bytesPerRow).toList();
+      final format = image.format.group.name.toLowerCase();
+      final rotation = _cameraController?.description.sensorOrientation ?? 0;
+
+      final result = await kwon.KwonMediapipeLandmarker.detectFromCamera(
+        planes: planes,
+        width: image.width,
+        height: image.height,
+        rotation: rotation,
+        format: format,
+        bytesPerRow: bytesPerRow,
+      );
+
+      if (!mounted) return;
+      final pose = result.pose;
+      final landmarks = pose?.landmarks ?? [];
+      final newScore = _computeScore(landmarks);
+      final now = DateTime.now();
+      if (now.difference(_lastUiUpdate).inMilliseconds >= 140) {
+        _lastUiUpdate = now;
+        setState(() {
+          _poseLandmarks = landmarks;
+          _score = newScore;
+        });
+      }
+    } catch (e) {
+      debugPrint('MediaPipe detect failed: $e');
+    } finally {
+      _isProcessingFrame = false;
+    }
+  }
+
+  int _computeScore(List<kwon.Landmark> landmarks) {
+    if (landmarks.isEmpty) return 0;
+    final withVisibility = landmarks.where((lm) => lm.visibility != null).toList();
+    if (withVisibility.isEmpty) {
+      return (landmarks.length / 33.0 * 100).clamp(0, 100).round();
+    }
+    final avg = withVisibility
+            .map((lm) => lm.visibility ?? 0)
+            .fold<double>(0, (sum, v) => sum + v) /
+        withVisibility.length;
+    return (avg * 100).clamp(0, 100).round();
+  }
+
+  Future<void> _flipCamera() async {
+    if (_isTracking) {
+      _toggleTracking();
+    }
+
+    await _stopImageStream();
+    await _cameraController?.dispose();
+    _cameraController = null;
+
+    setState(() {
+      _currentLens = _currentLens == CameraLensDirection.back
+          ? CameraLensDirection.front
+          : CameraLensDirection.back;
+      _isCameraInitialized = false;
+    });
+
+    await _initializeCamera();
+  }
+
+  String get _primaryInstruction {
+    if (widget.instructions.isNotEmpty) {
+      final trimmed = widget.instructions.where((step) => step.trim().isNotEmpty).toList();
+      if (trimmed.isEmpty) {
+        return 'Keep your full body in frame before starting.';
+      }
+      if (trimmed.length == 1) {
+        return trimmed.first;
+      }
+      return '${trimmed[0]}\n${trimmed[1]}';
+    }
+    return 'Keep your full body in frame before starting.';
+  }
+
   @override
   void dispose() {
+    _stopImageStream();
     _cameraController?.dispose();
     _timer?.cancel();
     _timer = null;
+    kwon.KwonMediapipeLandmarker.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // IF PERMISSION IS DENIED: Show the "Open Settings" screen
     if (_isPermissionDenied) {
       return Scaffold(
         backgroundColor: Colors.black,
@@ -113,15 +259,15 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("Camera access is required for tracking.", style: TextStyle(color: Colors.white)),
+              const Text('Camera access is required for tracking.', style: TextStyle(color: Colors.white)),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () => openAppSettings(), // Opens the phone's settings
-                child: const Text("Open Settings"),
+                onPressed: () => openAppSettings(),
+                child: const Text('Open Settings'),
               ),
               TextButton(
                 onPressed: _initializeCamera,
-                child: const Text("Retry", style: TextStyle(color: Colors.orange)),
+                child: const Text('Retry', style: TextStyle(color: Colors.orange)),
               ),
             ],
           ),
@@ -129,7 +275,6 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       );
     }
 
-    // IF STILL LOADING: Show a spinner
     if (!_isCameraInitialized || _cameraController == null) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -137,17 +282,24 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       );
     }
 
-    // THE MAIN CAMERA SCREEN
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // The live video feed
           Positioned.fill(
             child: CameraPreview(_cameraController!),
           ),
-          
-          // The back button
+
+          if (_isTracking)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _PoseOverlayPainter(
+                  landmarks: _poseLandmarks,
+                  mirror: _currentLens == CameraLensDirection.front,
+                ),
+              ),
+            ),
+
           Positioned(
             top: 40,
             left: 16,
@@ -157,22 +309,53 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
             ),
           ),
 
-          // The Bottom Control Bar (Timer and Button)
+          Positioned(
+            top: 40,
+            right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.flip_camera_android, color: Colors.white, size: 28),
+              onPressed: _flipCamera,
+            ),
+          ),
+
           Positioned(
             bottom: 40,
             left: 0,
             right: 0,
             child: Column(
               children: [
-                // Timer Text
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.withOpacity(0.7)),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _primaryInstruction,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Score: ${_isTracking ? _score : '--'}',
+                          style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (_isTracking)
                   Text(
-                    "Time: $_elapsedSeconds sec",
+                    'Time: $_elapsedSeconds sec',
                     style: const TextStyle(color: Colors.orange, fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                 const SizedBox(height: 10),
-                
-                // Start/Stop Button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isTracking ? Colors.red : Colors.orange,
@@ -180,7 +363,7 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
                   ),
                   onPressed: _toggleTracking,
                   child: Text(
-                    _isTracking ? "Stop Tracking" : "Start Tracking",
+                    _isTracking ? 'Stop Tracking' : 'Start Tracking',
                     style: const TextStyle(color: Colors.white, fontSize: 18),
                   ),
                 ),
@@ -190,5 +373,32 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         ],
       ),
     );
+  }
+}
+
+class _PoseOverlayPainter extends CustomPainter {
+  _PoseOverlayPainter({required this.landmarks, required this.mirror});
+
+  final List<kwon.Landmark> landmarks;
+  final bool mirror;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (landmarks.isEmpty) return;
+
+    final paint = Paint()
+      ..color = Colors.greenAccent
+      ..style = PaintingStyle.fill;
+
+    for (final lm in landmarks) {
+      final x = mirror ? (1.0 - lm.x) : lm.x;
+      final offset = Offset(x * size.width, lm.y * size.height);
+      canvas.drawCircle(offset, 4, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PoseOverlayPainter oldDelegate) {
+    return oldDelegate.landmarks != landmarks || oldDelegate.mirror != mirror;
   }
 }
