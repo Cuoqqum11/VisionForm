@@ -69,53 +69,114 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Color.fromARGB(255, 36, 37, 39),
             borderRadius: BorderRadius.circular(20),
           ),
-          height: 100,
+          height: 143,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Color.fromARGB(255, 8, 14, 19),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+              children: [
+                Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 8, 14, 19),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                      ),
+                      width: 80,
+                      height: 80,
+                      child: Center(
+                        child: Text(
+                          "120g",
+                          style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Calories",
+                      style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                width: 80,
-                height: 80,
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Color.fromARGB(255, 8, 14, 19),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
-                ),
-                width: 80,
-                height: 80,
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Color.fromARGB(255, 8, 14, 19),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
-                ),
-                width: 80,
-                height: 80,
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Color.fromARGB(255, 8, 14, 19),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
-                ),
-                width: 80,
-                height: 80,
-              ),
-            ],
+                Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 8, 14, 19),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                      ),
+                      width: 80,
+                      height: 80,
+                      child: Center(
+                        child: Text(
+                          "100g",
+                          style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Protein",
+                      style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ), 
+                Column(
+                  children: [ 
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 8, 14, 19),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                      ),
+                      width: 80,
+                      height: 80,
+                      child: Center(
+                        child: Text(
+                          "150g",
+                          style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Carbs",
+                      style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),    
+                Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 8, 14, 19),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                      ),
+                      width: 80,
+                      height: 80,
+                      child: Center(
+                        child: Text(
+                          "70g",
+                          style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Fat",
+                      style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),  
+              ]
           ),
         ),
       ],
     );
-  }  
+  }
 }
+
 
 Widget _buildBar(HomeLogic data) {
   return Column(
@@ -169,4 +230,4 @@ Widget _buildBar(HomeLogic data) {
       ),
     ],
   );
-}   
+}
