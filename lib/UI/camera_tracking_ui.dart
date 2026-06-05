@@ -1,4 +1,9 @@
 import 'dart:async';
+
+//files imports
+import '../models/faultrecord.dart';
+
+//package imports
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -19,6 +24,9 @@ class CameraTrackingUI extends StatefulWidget {
 }
 
 class _CameraTrackingUIState extends State<CameraTrackingUI> {
+  final List<FaultRecord> faultRecords = []; //to store the temporary fault records during the session
+  int _lastFaultScore = 100; //track last fault score to prevent duplicate consecutive records
+  
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   bool _isPermissionDenied = false;
@@ -103,6 +111,7 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         _ensureMediaPipeReady();
         _startImageStream();
         _elapsedSeconds = 0;
+        _lastFaultScore = 100; // Reset fault tracking
         _timer?.cancel();
         _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
           if (!mounted) {
@@ -116,6 +125,14 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         _poseLandmarks = [];
         _timer?.cancel();
         _timer = null;
+        if (faultRecords.isNotEmpty) {
+          debugPrint('Caught ${faultRecords.length} bad frames for ${widget.workoutName}:');
+          for (var record in faultRecords) {
+            debugPrint('Time: ${record.elapsedSeconds}s, Score: ${record.score}, Landmarks: ${record.landmarks.length}');
+          }
+        } else {
+          debugPrint('Perfect set! No faults detected for ${widget.workoutName}.');
+        }
       }
     });
   }
@@ -180,6 +197,20 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       final landmarks = pose?.landmarks ?? [];
       final newScore = _computeScore(landmarks);
       final now = DateTime.now();
+
+      // Only record fault if score drops below 70 and is different from last recorded fault
+      if(newScore < 70 && _isTracking && _lastFaultScore >= 70) {
+        faultRecords.add(FaultRecord(
+          elapsedSeconds: _elapsedSeconds,
+          workoutName: widget.workoutName,
+          score: newScore,
+          landmarks: landmarks,
+        ));
+        _lastFaultScore = newScore;
+      } else if (newScore >= 70) {
+        _lastFaultScore = newScore; // Reset when score recovers
+      }
+      
       if (now.difference(_lastUiUpdate).inMilliseconds >= 140) {
         _lastUiUpdate = now;
         setState(() {
