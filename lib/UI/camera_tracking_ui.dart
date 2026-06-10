@@ -43,6 +43,10 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   Timer? _timer;
   int _elapsedSeconds = 0;
 
+  // Sit-up tracking
+  bool _wasInSitupUpPosition = false;
+  int _situpRepCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -112,6 +116,8 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         _startImageStream();
         _elapsedSeconds = 0;
         _lastFaultScore = 100; // Reset fault tracking
+        _wasInSitupUpPosition = false; // Reset sit-up tracking
+        _situpRepCount = 0;
         _timer?.cancel();
         _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
           if (!mounted) {
@@ -227,15 +233,126 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
 
   int _computeScore(List<kwon.Landmark> landmarks) {
     if (landmarks.isEmpty) return 0;
+    
+    // Calculate base visibility score
     final withVisibility = landmarks.where((lm) => lm.visibility != null).toList();
+    int baseScore;
     if (withVisibility.isEmpty) {
-      return (landmarks.length / 33.0 * 100).clamp(0, 100).round();
+      baseScore = (landmarks.length / 33.0 * 100).clamp(0, 100).round();
+    } else {
+      final avg = withVisibility
+              .map((lm) => lm.visibility ?? 0)
+              .fold<double>(0, (sum, v) => sum + v) /
+          withVisibility.length;
+      baseScore = (avg * 100).clamp(0, 100).round();
     }
-    final avg = withVisibility
-            .map((lm) => lm.visibility ?? 0)
-            .fold<double>(0, (sum, v) => sum + v) /
-        withVisibility.length;
-    return (avg * 100).clamp(0, 100).round();
+
+    // Apply workout-specific penalties
+    int finalScore = baseScore;
+
+    // Squat form validation
+    if (widget.workoutName.toLowerCase() == 'squats') {
+      try {
+        final poseResult = kwon.PoseResult(
+          landmarks: landmarks,
+          worldLandmarks: [],
+          segmentationMasks: [],
+        );
+
+        if (!poseResult.isSquatFormCorrect(offset: 0.1)) {
+          final alignment = poseResult.shoulderFeetAlignment;
+          final penalty = (alignment * 250).toInt();
+          finalScore = (finalScore - penalty).clamp(0, 100);
+          
+          debugPrint(
+            'Squat Form - Alignment: ${alignment.toStringAsFixed(3)}, '
+            'Penalty: $penalty points, Score: $baseScore -> $finalScore'
+          );
+        }
+      } catch (e) {
+        debugPrint('Squat validation error: $e');
+      }
+    }
+
+    // Push-up form validation
+    if (widget.workoutName.toLowerCase() == 'push-ups') {
+      try {
+        final poseResult = kwon.PoseResult(
+          landmarks: landmarks,
+          worldLandmarks: [],
+          segmentationMasks: [],
+        );
+
+        final armAngle = poseResult.pushupArmAngle;
+        final isStartingPositionCorrect =
+            poseResult.isPushupStartingPositionCorrect(angleTolerance: 30);
+        final isBottomPositionCorrect =
+            poseResult.isPushupBottomPositionCorrect(angleTolerance: 30);
+
+        // 1. Depth Penalty (Existing)
+        if (!isStartingPositionCorrect && !isBottomPositionCorrect) {
+          final distanceFromIdeal = ((armAngle - 90).abs() - 90).abs();
+          final penalty = ((distanceFromIdeal / 90) * 20).clamp(0, 20).toInt();
+          finalScore = (finalScore - penalty).clamp(0, 100);
+        }
+
+        // 2. Elbow Flare Penalty (NEW)
+        final flareAngle = poseResult.pushupTorsoArmAngle;
+        final isElbowFlareCorrect = poseResult.isPushupElbowFlareCorrect(targetAngle: 45, angleTolerance: 20);
+
+        // Only penalize elbow flare when they are actually bending their arms (armAngle < 150)
+        // This prevents penalizing the natural straight-arm plank position.
+        if (!isElbowFlareCorrect && armAngle < 150) {
+          // If they flare to 90 degrees (T-pose), they are 45 degrees away from ideal.
+          final flareDistanceFromIdeal = (flareAngle - 45).abs();
+          
+          // Max penalty of 15 points for flaring elbows completely out
+          final flarePenalty = ((flareDistanceFromIdeal / 45) * 15).clamp(0, 15).toInt();
+          finalScore = (finalScore - flarePenalty).clamp(0, 100);
+          
+          debugPrint(
+            'Pushup Form - Flare Angle: ${flareAngle.toStringAsFixed(1)}°, '
+            'Penalty: $flarePenalty points, Score dropping to: $finalScore'
+          );
+        }
+      } catch (e) {
+        debugPrint('Pushup validation error: $e');
+      }
+    }
+    // Sit-up form validation & Rep Tracking
+    if (widget.workoutName.toLowerCase() == 'sit up' || widget.workoutName.toLowerCase() == 'sit ups') {
+      try {
+        final poseResult = kwon.PoseResult(
+          landmarks: landmarks,
+          worldLandmarks: [],
+          segmentationMasks: [],
+        );
+
+        final torsoAngle = poseResult.situpTorsoAngle;
+        final isDown = poseResult.isSitupDownPosition;
+        final isUp = poseResult.isSitupUpPosition;
+
+        if (isUp && !_wasInSitupUpPosition) {
+          _wasInSitupUpPosition = true;
+          _situpRepCount++;
+          debugPrint('Sit-up Rep Completed! Total: $_situpRepCount');
+        } 
+        else if (isDown) {
+          _wasInSitupUpPosition = false;
+        }
+
+        if (!isDown && !isUp) {
+          final distanceFromMidpoint = (torsoAngle - 45).abs(); 
+          
+          final penalty = ((15 - distanceFromMidpoint) / 15 * 15).clamp(0, 15).toInt();
+          finalScore = (finalScore - penalty).clamp(0, 100);
+          
+        }
+      } catch (e) {
+        debugPrint('Sit-up validation error: $e');
+      }
+    }
+    return finalScore;
   }
 
   Future<void> _flipCamera() async {

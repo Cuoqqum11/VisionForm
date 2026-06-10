@@ -1,0 +1,37 @@
+﻿=== MAIN LIB FOLDER ===
+D:\code TT\flutter_application_1\lib\database
+D:\code TT\flutter_application_1\lib\Logic
+D:\code TT\flutter_application_1\lib\models
+D:\code TT\flutter_application_1\lib\UI
+D:\code TT\flutter_application_1\lib\main.dart
+D:\code TT\flutter_application_1\lib\database\database_service.dart
+D:\code TT\flutter_application_1\lib\Logic\diet_logic.dart
+D:\code TT\flutter_application_1\lib\Logic\home_logic.dart
+D:\code TT\flutter_application_1\lib\Logic\workout_logic.dart
+D:\code TT\flutter_application_1\lib\models\faultrecord.dart
+D:\code TT\flutter_application_1\lib\models\workout_model.dart
+D:\code TT\flutter_application_1\lib\models\workout_record_model.dart
+D:\code TT\flutter_application_1\lib\UI\camera_tracking_ui.dart
+D:\code TT\flutter_application_1\lib\UI\diet_UI.dart
+D:\code TT\flutter_application_1\lib\UI\homeUI.dart
+D:\code TT\flutter_application_1\lib\UI\workoutUI.dart
+D:\code TT\flutter_application_1\lib\UI\workout_detail_screen.dart
+
+
+=== MEDIAPIPE LIB FOLDER ===
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\kwon_mediapipe_landmarker.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\constants
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\extensions
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\platform
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\exceptions.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\landmark.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\landmarker.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\options.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\result.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\constants\face_blendshape.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\constants\face_landmark_index.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\constants\pose_landmark_index.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\extensions\face_result_helper.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\extensions\pose_result_helper.dart
+D:\code TT\flutter_application_1\third_party\kwon_mediapipe_landmarker\lib\src\platform\platform_channel.dart

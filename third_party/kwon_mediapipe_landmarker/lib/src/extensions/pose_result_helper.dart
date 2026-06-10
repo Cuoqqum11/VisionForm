@@ -2,7 +2,7 @@ import 'dart:math';
 
 import '../result.dart';
 import '../constants/pose_landmark_index.dart';
-
+import '../landmark.dart';
 /// PoseResult 편의 확장
 extension PoseResultHelper on PoseResult {
   /// 어깨 대칭 점수 (0.0~1.0, 수평일수록 높음)
@@ -205,5 +205,267 @@ extension PoseResultHelper on PoseResult {
 
     return (leftShoulder.visibility ?? 0) > 0.5 &&
         (rightShoulder.visibility ?? 0) > 0.5;
+  }
+
+  /// 어깨와 발의 X 좌표 정렬 (스쿼트 자세 검증용)
+  ///
+  /// 값이 작을수록 잘 정렬됨 (0.0 = 완벽한 정렬)
+  double get shoulderFeetAlignment {
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+    final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+    // 어깨의 평균 X 좌표
+    final shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+
+    // 발의 평균 X 좌표
+    final feetCenterX = (leftAnkle.x + rightAnkle.x) / 2;
+
+    // X 좌표 차이 반환 (0.0에 가까울수록 정렬됨)
+    return (shoulderCenterX - feetCenterX).abs();
+  }
+
+  /// 스쿼트 자세 검증 (어깨와 발이 정렬되었는지 확인)
+  ///
+  /// offset: 허용 오차 범위 (기본값: 0.5)
+  /// true이면 자세가 올바름
+  bool isSquatFormCorrect({double offset = 0.1}) {
+    final alignment = shoulderFeetAlignment;
+    final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+    final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+    // 발이 감지되어야 함
+    if ((leftAnkle.visibility ?? 0) < 0.5 ||
+        (rightAnkle.visibility ?? 0) < 0.5) {
+      return false;
+    }
+
+    // 어깨와 발이 지정된 오차 범위 내에 정렬되어야 함
+    return alignment <= offset;
+  }
+
+  /// 세 관절 사이의 각도 계산 (도 단위)
+  ///
+  /// joint1 -> joint2 -> joint3 순서로 각도 계산
+  /// 반환값: 0 ~ 180도
+  double getAngleBetweenJoints(Landmark joint1, Landmark joint2, Landmark joint3){    // 벡터 계산: joint2에서 joint1으로의 벡터
+    final v1x = joint1.x - joint2.x;
+    final v1y = joint1.y - joint2.y;
+
+    // 벡터 계산: joint2에서 joint3으로의 벡터
+    final v2x = joint3.x - joint2.x;
+    final v2y = joint3.y - joint2.y;
+
+    // 내적 계산
+    final dotProduct = v1x * v2x + v1y * v2y;
+
+    // 크기 계산
+    final magnitude1 = sqrt(v1x * v1x + v1y * v1y);
+    final magnitude2 = sqrt(v2x * v2x + v2y * v2y);
+
+    if (magnitude1 == 0 || magnitude2 == 0) return 0;
+
+    // 코사인 값 계산
+    final cosAngle = dotProduct / (magnitude1 * magnitude2);
+    final clampedCosAngle = cosAngle.clamp(-1.0, 1.0);
+
+    // 라디안을 도로 변환
+    return acos(clampedCosAngle) * 180 / pi;
+  }
+
+  /// 푸쉬업 시작 위치 검증 (팔이 펴진 상태)
+  ///
+  /// 어깨-팔꿈치-손목이 거의 일직선 (180도 근처)
+  bool isPushupStartingPositionCorrect({double angleTolerance = 30}) {
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+    final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+    final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+    // 관절이 감지되어야 함
+    if ((leftShoulder.visibility ?? 0) < 0.5 ||
+        (leftElbow.visibility ?? 0) < 0.5 ||
+        (leftWrist.visibility ?? 0) < 0.5 ||
+        (rightShoulder.visibility ?? 0) < 0.5 ||
+        (rightElbow.visibility ?? 0) < 0.5 ||
+        (rightWrist.visibility ?? 0) < 0.5) {
+      return false;
+    }
+
+    // 양팔의 각도 계산
+    final leftArmAngle = getAngleBetweenJoints(leftShoulder, leftElbow, leftWrist);
+    final rightArmAngle = getAngleBetweenJoints(rightShoulder, rightElbow, rightWrist);
+
+    // 180도에 가까워야 함 (펴진 상태)
+    final leftCorrect = (180 - leftArmAngle).abs() < angleTolerance;
+    final rightCorrect = (180 - rightArmAngle).abs() < angleTolerance;
+
+    return leftCorrect && rightCorrect;
+  }
+
+  /// 푸쉬업 내려간 위치 검증 (팔이 구부러진 상태)
+  ///
+  /// 어깨-팔꿈치-손목이 약 90도
+  bool isPushupBottomPositionCorrect({double angleTolerance = 30}) {
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+    final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+    final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+    // 관절이 감지되어야 함
+    if ((leftShoulder.visibility ?? 0) < 0.5 ||
+        (leftElbow.visibility ?? 0) < 0.5 ||
+        (leftWrist.visibility ?? 0) < 0.5 ||
+        (rightShoulder.visibility ?? 0) < 0.5 ||
+        (rightElbow.visibility ?? 0) < 0.5 ||
+        (rightWrist.visibility ?? 0) < 0.5) {
+      return false;
+    }
+
+    // 양팔의 각도 계산
+    final leftArmAngle = getAngleBetweenJoints(leftShoulder, leftElbow, leftWrist);
+    final rightArmAngle = getAngleBetweenJoints(rightShoulder, rightElbow, rightWrist);
+
+    // 90도에 가까워야 함 (구부러진 상태)
+    final leftCorrect = (90 - leftArmAngle).abs() < angleTolerance;
+    final rightCorrect = (90 - rightArmAngle).abs() < angleTolerance;
+
+    return leftCorrect && rightCorrect;
+  }
+
+  /// 푸쉬업 팔 각도 (양팔의 평균)
+  double get pushupArmAngle {
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+    final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+    final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+    if ((leftElbow.visibility ?? 0) < 0.5 || (rightElbow.visibility ?? 0) < 0.5) {
+      return 0;
+    }
+
+    final leftAngle = getAngleBetweenJoints(leftShoulder, leftElbow, leftWrist);
+    final rightAngle = getAngleBetweenJoints(rightShoulder, rightElbow, rightWrist);
+
+    return (leftAngle + rightAngle) / 2;
+  }
+
+  double get pushupTorsoArmAngle {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+    
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+
+    // 어깨가 보이지 않으면 0 반환
+    if ((leftShoulder.visibility ?? 0) < 0.5 || (rightShoulder.visibility ?? 0) < 0.5) {
+      return 0;
+    }
+
+    // 어깨를 꼭짓점으로 하여 골반(몸통)과 팔꿈치(팔) 사이의 각도 계산
+    final leftAngle = getAngleBetweenJoints(leftHip, leftShoulder, leftElbow);
+    final rightAngle = getAngleBetweenJoints(rightHip, rightShoulder, rightElbow);
+
+    return (leftAngle + rightAngle) / 2;
+  }
+
+  /// 푸쉬업 팔꿈치 벌어짐 검증 (45도 유지)
+  ///
+  /// targetAngle: 이상적인 각도 (기본 45도 - 화살표 모양)
+  /// angleTolerance: 허용 오차 (기본 20도 -> 25~65도 사이면 올바른 자세로 판정)
+  bool isPushupElbowFlareCorrect({double targetAngle = 45, double angleTolerance = 20}) {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+    
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+
+    if ((leftHip.visibility ?? 0) < 0.5 ||
+        (leftShoulder.visibility ?? 0) < 0.5 ||
+        (leftElbow.visibility ?? 0) < 0.5 ||
+        (rightHip.visibility ?? 0) < 0.5 ||
+        (rightShoulder.visibility ?? 0) < 0.5 ||
+        (rightElbow.visibility ?? 0) < 0.5) {
+      return false;
+    }
+
+    final leftAngle = getAngleBetweenJoints(leftHip, leftShoulder, leftElbow);
+    final rightAngle = getAngleBetweenJoints(rightHip, rightShoulder, rightElbow);
+
+    final leftCorrect = (leftAngle - targetAngle).abs() <= angleTolerance;
+    final rightCorrect = (rightAngle - targetAngle).abs() <= angleTolerance;
+
+    return leftCorrect && rightCorrect;
+  }
+
+  /// 윗몸일으키기 몸통 각도 (누운 상태 대비 들어올린 정도)
+  ///
+  /// 0도: 누운 상태 (수평), 90도: 일어난 상태 (수직)
+  /// 반환값: 0 ~ 90도
+  double get situpTorsoAngle {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+    // 중심점 계산
+    final hipCenterX = (leftHip.x + rightHip.x) / 2;
+    final hipCenterY = (leftHip.y + rightHip.y) / 2;
+    final shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+    final shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+
+    // 골반에서 어깨로의 벡터
+    final dx = shoulderCenterX - hipCenterX;
+    final dy = shoulderCenterY - hipCenterY;
+
+    // 수평축으로부터의 각도 (MediaPipe에서 y는 아래로 증가)
+    // 누운 상태: dy ≈ 0, 각도 ≈ 0
+    // 앉은 상태: dy < 0 (어깨가 골반 위), 각도 증가
+    final angleRad = atan2(-dy, dx); // dy를 음수로 처리 (y는 아래로 증가하므로)
+    final angleDeg = angleRad * 180 / pi;
+
+    // 0-90 범위로 정규화
+    return angleDeg.abs().clamp(0.0, 90.0);
+  }
+
+  /// 윗몸일으키기 누운 자세 감지
+  ///
+  /// 몸통 각도가 30도 미만일 때 (거의 누운 상태)
+  bool get isSitupDownPosition {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+    if ((leftHip.visibility ?? 0) < 0.5 ||
+        (leftShoulder.visibility ?? 0) < 0.5) {
+      return false;
+    }
+
+    return situpTorsoAngle < 30;
+  }
+
+  /// 윗몸일으키기 앉은 자세 감지
+  ///
+  /// 몸통 각도가 60도 이상일 때 (충분히 들어올린 상태)
+  bool get isSitupUpPosition {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+    if ((leftHip.visibility ?? 0) < 0.5 ||
+        (leftShoulder.visibility ?? 0) < 0.5) {
+      return false;
+    }
+
+    return situpTorsoAngle >= 60;
   }
 }

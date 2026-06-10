@@ -175,9 +175,13 @@ class PoseResult {
   /// 33개 월드 좌표 (미터 단위)
   final List<Landmark>? worldLandmarks;
 
+  final List<Landmark> segmentationMasks;
+
+
   const PoseResult({
     required this.landmarks,
     this.worldLandmarks,
+    this.segmentationMasks = const [],
   });
 
   /// Map에서 PoseResult 생성
