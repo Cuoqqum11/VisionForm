@@ -2,11 +2,15 @@ import 'dart:async';
 
 //files imports
 import '../models/faultrecord.dart';
+import '../models/workout_session_summary.dart';
+import '../Logic/workout_logic.dart';
+import 'workout_result_screen.dart';
 
 //package imports
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import 'package:kwon_mediapipe_landmarker/kwon_mediapipe_landmarker.dart' as kwon;
 
 class CameraTrackingUI extends StatefulWidget {
@@ -25,7 +29,6 @@ class CameraTrackingUI extends StatefulWidget {
 
 class _CameraTrackingUIState extends State<CameraTrackingUI> {
   final List<FaultRecord> faultRecords = []; //to store the temporary fault records during the session
-  int _lastFaultScore = 100; //track last fault score to prevent duplicate consecutive records
   
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
@@ -42,6 +45,7 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   bool _isTracking = false;
   Timer? _timer;
   int _elapsedSeconds = 0;
+  DateTime? _trackingStartedAt;
 
   // Sit-up tracking
   bool _wasInSitupUpPosition = false;
@@ -107,39 +111,68 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
     }
   }
 
-  void _toggleTracking() {
-    setState(() {
-      _isTracking = !_isTracking;
+  Future<void> _toggleTracking() async {
+    if (_isTracking) {
+      setState(() {
+        _isTracking = false;
+      });
 
-      if (_isTracking) {
-        _ensureMediaPipeReady();
-        _startImageStream();
-        _elapsedSeconds = 0;
-        _lastFaultScore = 100; // Reset fault tracking
-        _wasInSitupUpPosition = false; // Reset sit-up tracking
-        _situpRepCount = 0;
-        _timer?.cancel();
-        _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (!mounted) {
-            timer.cancel();
-            return;
-          }
-          setState(() => _elapsedSeconds++);
-        });
-      } else {
-        _stopImageStream();
+      await _stopImageStream();
+      if (!mounted) return;
+
+      setState(() {
         _poseLandmarks = [];
         _timer?.cancel();
         _timer = null;
-        if (faultRecords.isNotEmpty) {
-          debugPrint('Caught ${faultRecords.length} bad frames for ${widget.workoutName}:');
-          for (var record in faultRecords) {
-            debugPrint('Time: ${record.elapsedSeconds}s, Score: ${record.score}, Landmarks: ${record.landmarks.length}');
-          }
-        } else {
-          debugPrint('Perfect set! No faults detected for ${widget.workoutName}.');
+      });
+
+      final summary = WorkoutSessionSummary(
+        workoutName: widget.workoutName,
+        elapsedSeconds: _elapsedSeconds,
+        faultRecords: List<FaultRecord>.unmodifiable(faultRecords),
+        repCount: _situpRepCount,
+        finishedAt: DateTime.now(),
+      );
+
+      Provider.of<WorkoutProvide>(context, listen: false).setLatestWorkoutSummary(summary);
+
+      if (!mounted) return;
+
+      if (faultRecords.isNotEmpty) {
+        debugPrint('Caught ${faultRecords.length} low-score frames for ${widget.workoutName}:');
+        for (var record in faultRecords) {
+          debugPrint('Time: ${record.elapsedMilliseconds}ms, Score: ${record.score}, Landmarks: ${record.landmarks.length}');
         }
+      } else {
+        debugPrint('Perfect set! No faults detected for ${widget.workoutName}.');
       }
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => WorkoutResultScreen(summary: summary),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isTracking = true;
+      _elapsedSeconds = 0;
+      _trackingStartedAt = DateTime.now();
+      _wasInSitupUpPosition = false;
+      _situpRepCount = 0;
+      faultRecords.clear();
+    });
+
+    await _ensureMediaPipeReady();
+    _startImageStream();
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _elapsedSeconds++);
     });
   }
 
@@ -204,17 +237,16 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       final newScore = _computeScore(landmarks);
       final now = DateTime.now();
 
-      // Only record fault if score drops below 70 and is different from last recorded fault
-      if(newScore < 70 && _isTracking && _lastFaultScore >= 70) {
+      if (newScore < 70 && _isTracking) {
         faultRecords.add(FaultRecord(
           elapsedSeconds: _elapsedSeconds,
+          elapsedMilliseconds: _trackingStartedAt == null
+              ? _elapsedSeconds * 1000
+              : now.difference(_trackingStartedAt!).inMilliseconds,
           workoutName: widget.workoutName,
           score: newScore,
           landmarks: landmarks,
         ));
-        _lastFaultScore = newScore;
-      } else if (newScore >= 70) {
-        _lastFaultScore = newScore; // Reset when score recovers
       }
       
       if (now.difference(_lastUiUpdate).inMilliseconds >= 140) {
@@ -477,9 +509,9 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
+                      color: Colors.black.withAlpha(153),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withOpacity(0.7)),
+                      border: Border.all(color: Colors.orange.withAlpha(179)),
                     ),
                     child: Column(
                       children: [
@@ -509,7 +541,7 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
                     backgroundColor: _isTracking ? Colors.red : Colors.orange,
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                   ),
-                  onPressed: _toggleTracking,
+                  onPressed: () => _toggleTracking(),
                   child: Text(
                     _isTracking ? 'Stop Tracking' : 'Start Tracking',
                     style: const TextStyle(color: Colors.white, fontSize: 18),

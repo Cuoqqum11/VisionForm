@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Logic/workout_logic.dart';
 import 'camera_tracking_ui.dart';
+import 'workout_result_screen.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   const WorkoutDetailScreen({super.key});
@@ -132,6 +133,37 @@ class WorkoutDetailScreen extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 24),
+
+                if (provider.latestWorkoutSummary != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.orange.withAlpha(230)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => WorkoutResultScreen(
+                              summary: provider.latestWorkoutSummary!,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.summarize, color: Colors.orange),
+                      label: const Text(
+                        'View Last Result',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // Camera AI Button
                 SizedBox(
