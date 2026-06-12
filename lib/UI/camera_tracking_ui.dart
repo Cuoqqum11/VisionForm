@@ -28,6 +28,13 @@ class CameraTrackingUI extends StatefulWidget {
 }
 
 class _CameraTrackingUIState extends State<CameraTrackingUI> {
+  // Live Feedback Tracker
+  String _liveFeedback = "Ready to start!";
+  
+  // Squat tracking
+  bool _wasInSquatUpPosition = false;
+  int _squatRepCount = 0;
+
   final List<FaultRecord> faultRecords = []; //to store the temporary fault records during the session
   
   CameraController? _cameraController;
@@ -50,6 +57,10 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   // Sit-up tracking
   bool _wasInSitupUpPosition = false;
   int _situpRepCount = 0;
+
+  // Push-up tracking
+  bool _wasInPushupUpPosition = false;
+  int _pushupRepCount = 0;
 
   @override
   void initState() {
@@ -161,6 +172,8 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       _trackingStartedAt = DateTime.now();
       _wasInSitupUpPosition = false;
       _situpRepCount = 0;
+      _wasInPushupUpPosition = false;
+      _pushupRepCount = 0;
       faultRecords.clear();
     });
 
@@ -283,6 +296,7 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
     int finalScore = baseScore;
 
     // Squat form validation
+ // Squat form validation & Rep Tracking
     if (widget.workoutName.toLowerCase() == 'squats') {
       try {
         final poseResult = kwon.PoseResult(
@@ -291,23 +305,48 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
           segmentationMasks: [],
         );
 
+        final isUp = poseResult.isSquatUpPosition;
+        final isDown = poseResult.isSquatDownPosition;
+        final alignment = poseResult.shoulderFeetAlignment;
+        
+        // Default feedback when moving
+        String currentFeedback = "Keep going...";
+
+        // 1. Rep Counting Logic
+        if (isUp && !_wasInSquatUpPosition) {
+          _wasInSquatUpPosition = true;
+          _squatRepCount++;
+          currentFeedback = "Good rep! $_squatRepCount completed.";
+        } else if (isDown) {
+          _wasInSquatUpPosition = false;
+          currentFeedback = "Good depth, now push up!";
+        }
+
+        // 2. Form Validation (Live Correction)
+        // If they lean too far forward (offset > 0.1), overwrite the feedback with a correction
         if (!poseResult.isSquatFormCorrect(offset: 0.1)) {
-          final alignment = poseResult.shoulderFeetAlignment;
-          final penalty = (alignment * 250).toInt();
+          final penalty = (alignment * 200).toInt();
           finalScore = (finalScore - penalty).clamp(0, 100);
           
-          debugPrint(
-            'Squat Form - Alignment: ${alignment.toStringAsFixed(3)}, '
-            'Penalty: $penalty points, Score: $baseScore -> $finalScore'
-          );
+          currentFeedback = "Keep your back straight and chest up!"; // Hard-coded live tip
+        } 
+        // If they stop halfway down, tell them to go lower
+        else if (!isDown && !isUp && poseResult.squatKneeAngle < 140 && poseResult.squatKneeAngle >= 100) {
+           currentFeedback = "Lower! Get your hips to knee level.";
         }
+
+        // Update the UI string safely without causing infinite rebuild loops
+        if (_liveFeedback != currentFeedback && _isTracking) {
+          _liveFeedback = currentFeedback;
+        }
+
       } catch (e) {
         debugPrint('Squat validation error: $e');
       }
     }
 
     // Push-up form validation
-    if (widget.workoutName.toLowerCase() == 'push-ups') {
+    if (widget.workoutName.toLowerCase() == 'push-ups' || widget.workoutName.toLowerCase() == 'push up') {
       try {
         final poseResult = kwon.PoseResult(
           landmarks: landmarks,
@@ -316,42 +355,57 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         );
 
         final armAngle = poseResult.pushupArmAngle;
-        final isStartingPositionCorrect =
-            poseResult.isPushupStartingPositionCorrect(angleTolerance: 30);
-        final isBottomPositionCorrect =
-            poseResult.isPushupBottomPositionCorrect(angleTolerance: 30);
+        final isUp = poseResult.isPushupStartingPositionCorrect(angleTolerance: 20);
+        final isDown = poseResult.isPushupBottomPositionCorrect(angleTolerance: 20);
 
-        // 1. Depth Penalty (Existing)
-        if (!isStartingPositionCorrect && !isBottomPositionCorrect) {
-          final distanceFromIdeal = ((armAngle - 90).abs() - 90).abs();
-          final penalty = ((distanceFromIdeal / 90) * 20).clamp(0, 20).toInt();
-          finalScore = (finalScore - penalty).clamp(0, 100);
+        String currentFeedback = "Keep going...";
+        // 1. Rep Counting Logic
+        if (isUp && !_wasInPushupUpPosition) {
+          _wasInPushupUpPosition = true;
+          _pushupRepCount++;
+          currentFeedback = "Good rep! Rep: $_pushupRepCount completed.";
+        } else if (isDown) {
+          _wasInPushupUpPosition = false;
+          currentFeedback = "Push up!";
         }
-
-        // 2. Elbow Flare Penalty (NEW)
+        // 2. Form Validation (Live Correction)
+        final bodyAngle = poseResult.pushupBodyAngle;
         final flareAngle = poseResult.pushupTorsoArmAngle;
         final isElbowFlareCorrect = poseResult.isPushupElbowFlareCorrect(targetAngle: 45, angleTolerance: 20);
-
-        // Only penalize elbow flare when they are actually bending their arms (armAngle < 150)
-        // This prevents penalizing the natural straight-arm plank position.
-        if (!isElbowFlareCorrect && armAngle < 150) {
-          // If they flare to 90 degrees (T-pose), they are 45 degrees away from ideal.
-          final flareDistanceFromIdeal = (flareAngle - 45).abs();
-          
-          // Max penalty of 15 points for flaring elbows completely out
-          final flarePenalty = ((flareDistanceFromIdeal / 45) * 15).clamp(0, 15).toInt();
-          finalScore = (finalScore - flarePenalty).clamp(0, 100);
-          
-          debugPrint(
-            'Pushup Form - Flare Angle: ${flareAngle.toStringAsFixed(1)}°, '
-            'Penalty: $flarePenalty points, Score dropping to: $finalScore'
-          );
+        // 2.1. Check for body angle/straightness
+        if (bodyAngle < 160) {
+          final bodyPenalty = ((180 - bodyAngle) * 2).clamp(0, 30).toInt();
+          finalScore = (finalScore - bodyPenalty).clamp(0, 100);
+          currentFeedback = "Keep your body straight! Don't let your hips sag.";
         }
+        // 2.2. Check for elbow flare
+        else if (!isElbowFlareCorrect && armAngle < 150) {
+          final flarePenalty = (((flareAngle - 45).abs() / 45) * 15).clamp(0, 15).toInt();
+          finalScore = (finalScore - flarePenalty).clamp(0, 100);
+          currentFeedback = "Tuck your elbows closer to your body!";
+        }
+        // 2.3. Check for arm angle
+        else if (!isUp && !isDown) {
+          final distanceFromIdeal = ((armAngle - 90).abs() - 90).abs();
+          final depthPenalty = ((distanceFromIdeal / 90) * 20).clamp(0, 20).toInt();
+          finalScore = (finalScore - depthPenalty).clamp(0, 100);
+          
+          if (armAngle > 100 && armAngle < 150) {
+            currentFeedback = "Go lower!";
+          }
+        }
+
+        // Update UI
+        if (_liveFeedback != currentFeedback && _isTracking) {
+          _liveFeedback = currentFeedback;
+        }
+
       } catch (e) {
         debugPrint('Pushup validation error: $e');
       }
     }
     // Sit-up form validation & Rep Tracking
+// Sit-up form validation & Rep Tracking
     if (widget.workoutName.toLowerCase() == 'sit up' || widget.workoutName.toLowerCase() == 'sit ups') {
       try {
         final poseResult = kwon.PoseResult(
@@ -364,22 +418,30 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         final isDown = poseResult.isSitupDownPosition;
         final isUp = poseResult.isSitupUpPosition;
 
+        String currentFeedback = "Keep going...";
+
+        // 1. Rep Counting Logic
         if (isUp && !_wasInSitupUpPosition) {
           _wasInSitupUpPosition = true;
           _situpRepCount++;
-          debugPrint('Sit-up Rep Completed! Total: $_situpRepCount');
-        } 
-        else if (isDown) {
+          currentFeedback = "Good rep! $_situpRepCount completed.";
+        } else if (isDown) {
           _wasInSitupUpPosition = false;
+          currentFeedback = "Engage core and sit up!";
         }
 
+        // 2. Scoring Logic
         if (!isDown && !isUp) {
           final distanceFromMidpoint = (torsoAngle - 45).abs(); 
-          
           final penalty = ((15 - distanceFromMidpoint) / 15 * 15).clamp(0, 15).toInt();
           finalScore = (finalScore - penalty).clamp(0, 100);
-          
         }
+
+        // Update UI
+        if (_liveFeedback != currentFeedback && _isTracking) {
+          _liveFeedback = currentFeedback;
+        }
+
       } catch (e) {
         debugPrint('Sit-up validation error: $e');
       }
@@ -521,6 +583,19 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 8),
+
+                        if (_isTracking)...[
+                          Text(
+                            _liveFeedback,
+                            style: TextStyle(
+                              color: _score < 70 ? Colors.redAccent : Colors.greenAccent, 
+                              fontSize: 16, 
+                              fontWeight: FontWeight.bold
+                            ), 
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         Text(
                           'Score: ${_isTracking ? _score : '--'}',
                           style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),

@@ -245,6 +245,35 @@ extension PoseResultHelper on PoseResult {
     return alignment <= offset;
   }
 
+  double get squatKneeAngle {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftKnee = landmarks[PoseLandmarkIndex.leftKnee];
+    final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final rightKnee = landmarks[PoseLandmarkIndex.rightKnee];
+    final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+    if ((leftKnee.visibility ?? 0) < 0.5 || (rightKnee.visibility ?? 0) < 0.5) return 0;
+
+    final leftAngle = getAngleBetweenJoints(leftHip, leftKnee, leftAnkle);
+    final rightAngle = getAngleBetweenJoints(rightHip, rightKnee, rightAnkle);
+
+    return (leftAngle + rightAngle) / 2;
+  }
+
+  /// 스쿼트 내려간 자세 감지 (무릎 각도 100도 이하)
+  bool get isSquatDownPosition {
+    // 90 is perfectly parallel. 100 is a forgiving but decent depth.
+    return squatKneeAngle > 0 && squatKneeAngle < 100;
+  }
+
+  /// 스쿼트 일어선 자세 감지 (무릎 각도 160도 이상)
+  bool get isSquatUpPosition {
+    // 180 is fully standing straight.
+    return squatKneeAngle > 160;
+  }
+
   /// 세 관절 사이의 각도 계산 (도 단위)
   ///
   /// joint1 -> joint2 -> joint3 순서로 각도 계산
@@ -378,6 +407,25 @@ extension PoseResultHelper on PoseResult {
     return (leftAngle + rightAngle) / 2;
   }
 
+  double get pushupBodyAngle {
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+    // 관절이 보이지 않으면 180(정상)으로 간주하여 잘못된 페널티 방지
+    if ((leftHip.visibility ?? 0) < 0.5 || (rightHip.visibility ?? 0) < 0.5) {
+      return 180.0; 
+    }
+
+    final leftAngle = getAngleBetweenJoints(leftShoulder, leftHip, leftAnkle);
+    final rightAngle = getAngleBetweenJoints(rightShoulder, rightHip, rightAnkle);
+
+    return (leftAngle + rightAngle) / 2;
+  }
   /// 푸쉬업 팔꿈치 벌어짐 검증 (45도 유지)
   ///
   /// targetAngle: 이상적인 각도 (기본 45도 - 화살표 모양)
