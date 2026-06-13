@@ -6,6 +6,7 @@ class FaultRecord {
   final String workoutName;
   final int score;
   final List<kwon.Landmark> landmarks; //the skeleton data
+  final String? feedbackMessage;
   
   FaultRecord({
     required this.elapsedSeconds,
@@ -13,6 +14,7 @@ class FaultRecord {
     required this.workoutName,
     required this.score,
     required this.landmarks,
+    this.feedbackMessage,
   });
 
   //Convert to JSON for data storage
@@ -23,6 +25,7 @@ class FaultRecord {
       'workoutName': workoutName,
       'score': score,
       'landmarks': landmarks.map((lm) => lm.toMap()).toList(),
+      'feedbackMessage': feedbackMessage,
     };
   }
 
@@ -35,7 +38,7 @@ class FaultRecord {
       score: json['score'] as int,
       landmarks: (json['landmarks'] as List)
           .map((lm) => kwon.Landmark.fromMap(lm as Map<String, dynamic>)).toList(),
-
+      feedbackMessage: json['feedbackMessage'] as String?,
     );
   }
 }

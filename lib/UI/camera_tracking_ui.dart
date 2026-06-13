@@ -5,6 +5,7 @@ import '../models/faultrecord.dart';
 import '../models/workout_session_summary.dart';
 import '../Logic/workout_logic.dart';
 import 'workout_result_screen.dart';
+import '../Logic/virtual_coach.dart';
 
 //package imports
 import 'package:flutter/material.dart';
@@ -36,6 +37,8 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   int _squatRepCount = 0;
 
   final List<FaultRecord> faultRecords = []; //to store the temporary fault records during the session
+  int _lastFaultScore = 100; // MUST be here, outside of any functions!
+  DateTime? _trackingStartTime; // We will need this to calculate your elapsed time
   
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
@@ -50,6 +53,7 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   int _score = 0;
 
   bool _isTracking = false;
+  bool _isGeneratingSummary = false; // To prevent multiple rapid taps on "Stop" causing issues
   Timer? _timer;
   int _elapsedSeconds = 0;
   DateTime? _trackingStartedAt;
@@ -446,6 +450,27 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
         debugPrint('Sit-up validation error: $e');
       }
     }
+    if (finalScore < 70 && _lastFaultScore >= 70) {
+      
+      // Calculate how long they have been working out
+      final elapsedMs = _trackingStartTime != null 
+          ? DateTime.now().difference(_trackingStartTime!).inMilliseconds 
+          : 0;
+      faultRecords.add(
+        FaultRecord(
+          elapsedSeconds: elapsedMs ~/ 1000,
+          elapsedMilliseconds: elapsedMs,
+          workoutName: widget.workoutName,
+          score: finalScore,
+          landmarks: landmarks, // Saving the exact skeleton frame
+          feedbackMessage: _liveFeedback,
+        ));
+      debugPrint('Fault Recorded! Score: $finalScore at ${elapsedMs ~/ 1000} seconds');
+    }
+
+    // Update the tracker for the next frame
+    _lastFaultScore = finalScore;
+    
     return finalScore;
   }
 
