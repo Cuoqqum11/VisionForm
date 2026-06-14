@@ -6,8 +6,10 @@ import 'UI/workout_detail_screen.dart';
 import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
 import "Logic/home_logic.dart";
+import 'package:flutter_gemini/flutter_gemini.dart';
 
 void main() {
+  Gemini.init(apiKey: 'AQ.Ab8RN6LMkIMrD99D_rAPMHvuUm5itwKwcgaYaT44YDx57hDHCA');
   runApp(
     ChangeNotifierProvider(
       create: (context) => WorkoutProvide(),

@@ -1,67 +1,204 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:image_picker/image_picker.dart';
-
-class FoodItem {
-  final String name;
-  final int calories;
-  final double protein;
-  final double carbs;
-  final double fat;
-
-  const FoodItem({
-    required this.name,
-    required this.calories,
-    required this.protein,
-    required this.carbs,
-    required this.fat,
-  });
-}
+import '../models/diet_models.dart';
 
 class DietLogic extends ChangeNotifier {
-  File? _image;
-  FoodItem? _selectedFood;
-  final ImagePicker _picker = ImagePicker();
+  // ── Profile ──────────────────────────────────────────────────────────────
+  final UserDietProfile profile = UserDietProfile();
 
-  File? get image => _image;
-  FoodItem? get selectedFood => _selectedFood;
+  // ── Flow state ───────────────────────────────────────────────────────────
+  DietFlowState _state = DietFlowState.entry;
+  DietFlowState get state => _state;
 
-  final List<FoodItem> foods = const [
-    FoodItem(name: 'Chicken Breast', calories: 165, protein: 31,  carbs: 0,    fat: 3.6),
-    FoodItem(name: 'Salmon',         calories: 208, protein: 20,  carbs: 0,    fat: 13),
-    FoodItem(name: 'Rice',           calories: 130, protein: 2.7, carbs: 28,   fat: 0.3),
-    FoodItem(name: 'Broccoli',       calories: 34,  protein: 2.8, carbs: 7,    fat: 0.4),
-    FoodItem(name: 'Apple',          calories: 52,  protein: 0.3, carbs: 14,   fat: 0.2),
-    FoodItem(name: 'Banana',         calories: 89,  protein: 1.1, carbs: 23,   fat: 0.3),
-    FoodItem(name: 'Eggs',           calories: 155, protein: 13,  carbs: 1.1,  fat: 11),
-    FoodItem(name: 'Avocado',        calories: 160, protein: 2,   carbs: 9,    fat: 15),
-    FoodItem(name: 'Oatmeal',        calories: 68,  protein: 2.4, carbs: 12,   fat: 1.4),
-    FoodItem(name: 'Yogurt',         calories: 59,  protein: 10,  carbs: 3.6,  fat: 0.4),
-    FoodItem(name: 'Beef',           calories: 250, protein: 26,  carbs: 0,    fat: 15),
-    FoodItem(name: 'Sweet Potato',   calories: 86,  protein: 1.6, carbs: 20,   fat: 0.1),
-    FoodItem(name: 'Spinach',        calories: 23,  protein: 2.9, carbs: 3.6,  fat: 0.4),
-    FoodItem(name: 'Carrot',         calories: 41,  protein: 0.9, carbs: 10,   fat: 0.2),
-    FoodItem(name: 'Orange',         calories: 47,  protein: 0.9, carbs: 12,   fat: 0.1),
-  ];
+  // ── Ingredient review ────────────────────────────────────────────────────
+  XFile? _pickedImage;
+  XFile? get pickedImage => _pickedImage;
 
-  List<FoodItem> filteredFoods(String query) {
-    return foods
-        .where((food) => food.name.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+  // All detected ingredients; key = name, value = enabled (shown as chip)
+  final Map<String, bool> _ingredients = {};
+  List<String> get allIngredients => _ingredients.keys.toList();
+  List<String> get confirmedIngredients =>
+      _ingredients.entries.where((e) => e.value).map((e) => e.key).toList();
+
+  bool isIngredientEnabled(String name) => _ingredients[name] ?? true;
+
+  void toggleIngredient(String name) {
+    if (_ingredients.containsKey(name)) {
+      _ingredients[name] = !_ingredients[name]!;
+      notifyListeners();
+    }
   }
 
-  void selectFood(FoodItem food) {
-    _selectedFood = food;
+  void addIngredient(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    _ingredients[trimmed] = true;
     notifyListeners();
   }
 
-  Future<void> pickImage() async {
-    final XFile? pickedFile = await _picker.pickImage(
-      source: ImageSource.camera,
-    );
-    if (pickedFile != null) {
-      _image = File(pickedFile.path);
+  void removeIngredient(String name) {
+    _ingredients.remove(name);
+    notifyListeners();
+  }
+
+  // ── Results ───────────────────────────────────────────────────────────────
+  List<MealSuggestion> _meals = [];
+  List<MealSuggestion> get meals => _meals;
+
+  String? _errorMessage;
+  String? get errorMessage => _errorMessage;
+
+  // ── Saved meals (in-memory for MVP) ───────────────────────────────────────
+  final List<SavedMeal> _savedMeals = [
+    const SavedMeal(name: 'Egg fried rice', tag: 'High protein', calories: 420),
+    const SavedMeal(name: 'Chicken bowl', tag: 'Goal match', calories: 510),
+    const SavedMeal(name: 'Greek salad', tag: 'Low carb', calories: 290),
+  ];
+  List<SavedMeal> get savedMeals => List.unmodifiable(_savedMeals);
+
+  void saveMeal(MealSuggestion meal) {
+    final already = _savedMeals.any((s) => s.name == meal.name);
+    if (!already) {
+      _savedMeals.insert(
+        0,
+        SavedMeal(name: meal.name, tag: meal.tag, calories: meal.calories),
+      );
       notifyListeners();
     }
+  }
+
+  // ── Profile setters ───────────────────────────────────────────────────────
+  void setGoal(String goal) {
+    profile.goal = goal;
+    notifyListeners();
+  }
+
+  void setDietType(String dietType) {
+    profile.dietType = dietType;
+    notifyListeners();
+  }
+
+  // ── Navigation helpers ────────────────────────────────────────────────────
+  void goToEntry() {
+    _state = DietFlowState.entry;
+    _pickedImage = null;
+    _ingredients.clear();
+    _meals = [];
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void goToResult() {
+    _state = DietFlowState.result;
+    notifyListeners();
+  }
+
+  // ── Step 1: Pick image & detect ingredients ───────────────────────────────
+  Future<void> scanFridge({bool fromCamera = true}) async {
+    final picker = ImagePicker();
+    final XFile? file = await picker.pickImage(
+      source: fromCamera ? ImageSource.camera : ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1024,
+    );
+    if (file == null) return; // user cancelled
+
+    _pickedImage = file;
+    _ingredients.clear();
+    _state = DietFlowState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final imageBytes = await file.readAsBytes();
+
+      final parts = [
+        Part.text(
+          'Look at this fridge or ingredients photo and list every individual '
+          'food item or ingredient you can see. '
+          'Return ONLY a JSON array of strings, each item being a single '
+          'ingredient name. Example: ["eggs","milk","spinach","chicken breast"]. '
+          'No extra text, no markdown fences.',
+        ),
+        Part.inline(
+          InlineData(mimeType: 'image/jpeg', data: base64Encode(imageBytes)),
+        ),
+      ];
+
+      final response = await Gemini.instance.prompt(parts: parts);
+      final raw = response?.output?.trim() ?? '[]';
+
+      // Strip accidental markdown fences if present
+      final cleaned = raw
+          .replaceAll(RegExp(r'^```json?\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'```$', multiLine: true), '')
+          .trim();
+
+      final List<dynamic> list = jsonDecode(cleaned) as List<dynamic>;
+      for (final item in list) {
+        final name = item.toString().trim();
+        if (name.isNotEmpty) _ingredients[name] = true;
+      }
+
+      _state = DietFlowState.review;
+    } catch (e) {
+      // Fallback: go to review with empty list so user can add manually
+      _state = DietFlowState.review;
+    }
+
+    notifyListeners();
+  }
+
+  // ── Step 2: Get meal recommendations ─────────────────────────────────────
+  Future<void> getMealRecommendations() async {
+    if (confirmedIngredients.isEmpty) return;
+
+    _state = DietFlowState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    final prompt =
+        '''
+You are a fitness nutrition coach. Based on the information below, suggest 3 meals.
+ 
+User goal: ${profile.goal}
+Diet type: ${profile.dietType}
+Favourite foods: ${profile.favoriteFoods.join(', ')}
+Available ingredients: ${confirmedIngredients.join(', ')}
+ 
+For EACH meal return:
+- name: short meal name
+- usedIngredients: array of strings from the available list used
+- calories: integer (total kcal)
+- macros: object with integer fields protein, carbs, fat (all in grams)
+- tag: exactly ONE of: "High protein", "Low carb", "Goal match", "Quick & easy", "Vegetarian", "Keto", "Balanced"
+- steps: array of 4-6 plain English cooking instruction strings (no numbering, just the sentence)
+ 
+Respond ONLY with a valid JSON array of 3 meal objects. No preamble, no markdown fences.
+''';
+
+    try {
+      final response = await Gemini.instance.prompt(parts: [Part.text(prompt)]);
+
+      final raw = response?.output?.trim() ?? '[]';
+      final cleaned = raw
+          .replaceAll(RegExp(r'^```json?\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'```$', multiLine: true), '')
+          .trim();
+
+      final List<dynamic> list = jsonDecode(cleaned) as List<dynamic>;
+      _meals = list
+          .map((json) => MealSuggestion.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      _state = DietFlowState.result;
+    } catch (e) {
+      _errorMessage = 'Could not generate meals. Please try again.';
+      _state = DietFlowState.error;
+    }
+
+    notifyListeners();
   }
 }
