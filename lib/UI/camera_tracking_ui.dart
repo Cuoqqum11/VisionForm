@@ -2,16 +2,13 @@ import 'dart:async';
 
 //files imports
 import '../models/faultrecord.dart';
-import '../models/workout_session_summary.dart';
-import '../Logic/workout_logic.dart';
-import 'workout_result_screen.dart';
 import '../Logic/virtual_coach.dart';
+import '../database/database_helper.dart';
 
 //package imports
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
 import 'package:kwon_mediapipe_landmarker/kwon_mediapipe_landmarker.dart' as kwon;
 
 class CameraTrackingUI extends StatefulWidget {
@@ -66,6 +63,9 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
   bool _wasInPushupUpPosition = false;
   int _pushupRepCount = 0;
 
+  // Pull-up tracking
+  bool _wasInPullupUpPosition = false;
+  int _pullupRepCount = 0;
   @override
   void initState() {
     super.initState();
@@ -126,71 +126,126 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
     }
   }
 
+  void _showWorkoutSummaryDialog(String summary, int totalReps) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Force them to click 'Done'
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2D2F36),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.auto_awesome, color: Colors.orange),
+              SizedBox(width: 10),
+              Text('Workout Complete', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Total Reps: $totalReps', 
+                style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)
+              ),
+              const SizedBox(height: 16),
+              Text(
+                summary, // The AI text payload
+                style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop(); // Go back to the workout detail screen
+              },
+              child: const Text('Done', style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _toggleTracking() async {
     if (_isTracking) {
+      // ==========================================
+      // STOP TRACKING & TRIGGER AI
+      // ==========================================
       setState(() {
         _isTracking = false;
+        _isGeneratingSummary = true; // Show the loading spinner
       });
 
       await _stopImageStream();
-      if (!mounted) return;
+      _poseLandmarks = [];
+      _timer?.cancel();
+      _timer = null;
 
+      // Determine total reps based on the active workout
+      int reps = 0;
+      final workoutLower = widget.workoutName.toLowerCase();
+      if (workoutLower.contains('squat')) reps = _squatRepCount;
+      if (workoutLower.contains('push')) reps = _pushupRepCount;
+      if (workoutLower.contains('sit')) reps = _situpRepCount;
+
+      final dbHelper = DatabaseHelper();
+      await dbHelper.insertWorkoutSession(
+        finalScore: _score.toDouble(), // Use the final _score state variable
+        totalReps: reps,               // Use the reps we just calculated above
+      );
+
+      // Call the Gemini 3.5 Flash model
+      final aiService = AiCoachService();
+      final aiSummary = await aiService.generateWorkoutSummary(
+        workoutName: widget.workoutName,
+        totalReps: reps,
+        faultRecords: faultRecords,
+      );
+
+      // Hide loading state
+      if (!mounted) return;
       setState(() {
-        _poseLandmarks = [];
-        _timer?.cancel();
-        _timer = null;
+        _isGeneratingSummary = false;
       });
 
-      final summary = WorkoutSessionSummary(
-        workoutName: widget.workoutName,
-        elapsedSeconds: _elapsedSeconds,
-        faultRecords: List<FaultRecord>.unmodifiable(faultRecords),
-        repCount: _situpRepCount,
-        finishedAt: DateTime.now(),
-      );
+      // Show the results!
+      _showWorkoutSummaryDialog(aiSummary, reps);
 
-      Provider.of<WorkoutProvide>(context, listen: false).setLatestWorkoutSummary(summary);
-
-      if (!mounted) return;
-
-      if (faultRecords.isNotEmpty) {
-        debugPrint('Caught ${faultRecords.length} low-score frames for ${widget.workoutName}:');
-        for (var record in faultRecords) {
-          debugPrint('Time: ${record.elapsedMilliseconds}ms, Score: ${record.score}, Landmarks: ${record.landmarks.length}');
-        }
-      } else {
-        debugPrint('Perfect set! No faults detected for ${widget.workoutName}.');
-      }
-
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => WorkoutResultScreen(summary: summary),
-        ),
-      );
-      return;
+    } else {
+      // ==========================================
+      // START TRACKING & RESET DATA
+      // ==========================================
+      setState(() {
+        _isTracking = true;
+        _trackingStartTime = DateTime.now(); // Start the timer
+        faultRecords.clear(); // Clear old faults
+        _elapsedSeconds = 0;
+        _lastFaultScore = 100;
+        
+        // Reset all rep counters and state flags
+        _squatRepCount = 0;
+        _pushupRepCount = 0;
+        _situpRepCount = 0;
+        _wasInSitupUpPosition = false;
+        _wasInPushupUpPosition = false;
+        _wasInSquatUpPosition = false;
+        
+        _ensureMediaPipeReady();
+        _startImageStream();
+        
+        _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!mounted) {
+            timer.cancel();
+            return;
+          }
+          setState(() => _elapsedSeconds++);
+        });
+      });
     }
-
-    setState(() {
-      _isTracking = true;
-      _elapsedSeconds = 0;
-      _trackingStartedAt = DateTime.now();
-      _wasInSitupUpPosition = false;
-      _situpRepCount = 0;
-      _wasInPushupUpPosition = false;
-      _pushupRepCount = 0;
-      faultRecords.clear();
-    });
-
-    await _ensureMediaPipeReady();
-    _startImageStream();
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() => _elapsedSeconds++);
-    });
   }
 
   Future<void> _ensureMediaPipeReady() async {
@@ -409,7 +464,6 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
       }
     }
     // Sit-up form validation & Rep Tracking
-// Sit-up form validation & Rep Tracking
     if (widget.workoutName.toLowerCase() == 'sit up' || widget.workoutName.toLowerCase() == 'sit ups') {
       try {
         final poseResult = kwon.PoseResult(
@@ -448,6 +502,53 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
 
       } catch (e) {
         debugPrint('Sit-up validation error: $e');
+      }
+    }
+
+    if (widget.workoutName.toLowerCase() == 'pull-up' || widget.workoutName.toLowerCase() == 'pull-ups'|| widget.workoutName.toLowerCase() == 'pullups'|| widget.workoutName.toLowerCase() == 'pullup') {
+      try {
+        final poseResult = kwon.PoseResult(landmarks: landmarks, worldLandmarks: [], segmentationMasks: []);
+
+        // Fetch properties strictly from your clean helper file!
+        final isHeadOverBar = poseResult.isHeadOverBar;
+        final isDown = poseResult.isPullupDownPosition;
+        final isGripWideEnough = poseResult.isPullupGripWideEnough;
+        final avgArmAngle = poseResult.pullupAvgArmAngle;
+        final torsoArchAngle = poseResult.pullupTorsoArchAngle;
+
+        String currentFeedback = "Keep going...";
+
+        // Rep Counting
+        if (isHeadOverBar && !_wasInPullupUpPosition) {
+          _wasInPullupUpPosition = true;
+          _pullupRepCount++;
+          currentFeedback = "Great pull! $_pullupRepCount completed.";
+        } else if (isDown) {
+          _wasInPullupUpPosition = false;
+          currentFeedback = "Pull up! Drive your elbows down.";
+        }
+
+        // Form Scoring
+        if (!isGripWideEnough) {
+          finalScore = (finalScore - 5).clamp(0, 100);
+          currentFeedback = "Widen your grip! Hands outside shoulders.";
+        } 
+        else if (!isHeadOverBar && !_wasInPullupUpPosition && avgArmAngle < 90) {
+          currentFeedback = "Pull higher! Get your chin over the bar.";
+        } 
+        else if (!isDown && _wasInPullupUpPosition && avgArmAngle > 100 && avgArmAngle < 140) {
+          currentFeedback = "Full range of motion! Straighten arms at the bottom.";
+        }
+
+        if (!isDown && torsoArchAngle < 15) { 
+          final penalty = ((20 - torsoArchAngle) / 2).clamp(0, 10).toInt();
+          finalScore = (finalScore - penalty).clamp(0, 100);
+          currentFeedback = "Lean back slightly! Push your chest toward the bar.";
+        }
+
+        if (_liveFeedback != currentFeedback && _isTracking) _liveFeedback = currentFeedback;
+      } catch (e) {
+        debugPrint('Pull-up validation error: $e');
       }
     }
     if (finalScore < 70 && _lastFaultScore >= 70) {
@@ -566,7 +667,26 @@ class _CameraTrackingUIState extends State<CameraTrackingUI> {
                 ),
               ),
             ),
-
+            
+          if (_isGeneratingSummary)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.85),
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Colors.orange),
+                      SizedBox(height: 24),
+                      Text(
+                        "AI Coach is analyzing your form...",
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             top: 40,
             left: 16,

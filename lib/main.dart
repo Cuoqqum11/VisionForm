@@ -1,12 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
+
+import "Logic/home_logic.dart";
 import 'Logic/workout_logic.dart';
 import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
 import "UI/homeUI.dart";
-import "Logic/home_logic.dart";
+import 'UI/yearly_progress_chart.dart';
 
-void main() {
+Future<void> main() async {
+  // Ensure Flutter bindings are initialized before loading anything
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load the secret .env file
+  await dotenv.load(fileName: ".env");
+
+  final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+
+  Gemini.init(
+    apiKey: apiKey,
+  );
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => WorkoutProvide(),
