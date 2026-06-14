@@ -37,7 +37,7 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   flutter_gemini: ^3.0.0
-  google_generative_ai: ^0.4.0
+  flutter_dotenv: ^6.0.1
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -71,6 +71,7 @@ flutter:
     - assets/images/pullups.jpg
     - assets/images/squat.jpg
     - assets/images/situp.jpg
+    - dotenv.env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
