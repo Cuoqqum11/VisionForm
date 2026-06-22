@@ -1,0 +1,7413 @@
+﻿=== MAIN LIB FOLDER ===
+database
+Logic
+models
+UI
+main.dart
+  import 'package:flutter/material.dart';
+
+  import 'package:provider/provider.dart';
+
+  import 'Logic/workout_logic.dart';
+
+  import 'UI/workoutUI.dart';
+
+  import 'UI/workout_detail_screen.dart';
+
+  import "UI/homeUI.dart";
+
+  import "Logic/home_logic.dart";
+
+  
+
+  void main() {
+
+    runApp(
+
+      ChangeNotifierProvider(
+
+        create: (context) => WorkoutProvide(),
+
+        child: const MyApp(),
+
+      ),
+
+    );
+
+  }
+
+  
+
+  class MyApp extends StatelessWidget {
+
+    const MyApp({super.key});
+
+  
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      return MaterialApp(
+
+        debugShowCheckedModeBanner: false,
+
+        theme: ThemeData.dark().copyWith(
+
+          scaffoldBackgroundColor: const Color(0xFF1C1C1E),
+
+          primaryColor: Colors.orange,
+
+        ),
+
+        home: const MainNavigationScreen(),
+
+      );
+
+    }
+
+  }
+
+  
+
+  class MainNavigationScreen extends StatefulWidget {
+
+    const MainNavigationScreen({super.key});
+
+  
+
+    @override
+
+    State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+
+  }
+
+  
+
+  class _MainNavigationScreenState extends State<MainNavigationScreen> {
+
+    int _currentIndex = 0;
+
+    
+
+    @override
+
+    void initState() {
+
+      super.initState();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+
+        Provider.of<WorkoutProvide>(context, listen: false).initializeApp();
+
+      });
+
+    }
+
+  
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      final selectedWorkout = context.watch<WorkoutProvide>().selectedWorkout;
+
+      final List<Widget> pages = [
+
+        HomeUI(data: data),
+
+        selectedWorkout == null
+
+            ? WorkoutListScreen(
+
+                onWorkoutSelected: () {
+
+                  setState(() {
+
+                    _currentIndex = 1;
+
+                  });
+
+                },
+
+              )
+
+            : const WorkoutDetailScreen(),
+
+        const Center(child: Text("Diet Screen", style: TextStyle(fontSize: 24))),
+
+      ];
+
+  
+
+      return Scaffold(
+
+        body: SafeArea(child: pages[_currentIndex]),
+
+        bottomNavigationBar: BottomNavigationBar(
+
+          currentIndex: _currentIndex,
+
+          onTap: (index) => setState(() => _currentIndex = index),
+
+          backgroundColor: const Color(0xFF2D2F36),
+
+          selectedItemColor: Colors.orange,
+
+          unselectedItemColor: Colors.grey,
+
+          type: BottomNavigationBarType.fixed,
+
+          items: const [
+
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+
+            BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: 'Workouts'),
+
+            BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Diet'),
+
+          ],
+
+        ),
+
+      );
+
+    }
+
+  }
+
+  
+
+database_service.dart
+  import 'package:sqflite/sqflite.dart';
+
+  import 'package:path/path.dart';
+
+  import 'package:path_provider/path_provider.dart';
+
+  import '../models/workout_model.dart';
+
+  import '../models/workout_record_model.dart';
+
+  
+
+  class DatabaseService {
+
+    static final DatabaseService instance = DatabaseService._init();
+
+    static Database? _database;
+
+    DatabaseService._init();
+
+  
+
+    Future<Database> get database async {
+
+      if (_database != null) return _database!;
+
+      _database = await _initDB('workout.db');
+
+      return _database!;
+
+    }
+
+  
+
+    Future<Database> _initDB(String filePath) async {
+
+      final dbPath = await getApplicationDocumentsDirectory();
+
+      final path = join(dbPath.path, filePath);
+
+      return await openDatabase(path, version: 1, onCreate: _createDB);
+
+    }
+
+  
+
+    Future _createDB(Database db, int version) async {
+
+      await db.execute('''
+
+        CREATE TABLE workouts (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        name TEXT NOT NULL,
+
+        duration INTEGER NOT NULL,
+
+        description TEXT NOT NULL,
+
+        instruction TEXT NOT NULL,
+
+        imageUrl TEXT NOT NULL
+
+  )''');
+
+  
+
+      await db.execute('''
+
+        CREATE TABLE workout_records (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        workoutId INTEGER NOT NULL,
+
+        date TEXT NOT NULL,
+
+        timeStamp INTEGER NOT NULL,
+
+        duration INTEGER NOT NULL,
+
+        reps INTEGER NOT NULL,
+
+        sets INTEGER NOT NULL,
+
+        notes TEXT NOT NULL,
+
+        FOREIGN KEY (workoutId) REFERENCES workouts (id) ON DELETE CASCADE
+
+  )''');
+
+    }
+
+  
+
+    Future<void> insertWorkout(Workout workout) async {
+
+      final db = await DatabaseService.instance.database;
+
+      await db.insert(
+
+        'workouts',
+
+        workout.toMap(),
+
+        conflictAlgorithm: ConflictAlgorithm.replace,
+
+      );
+
+    }
+
+  
+
+    Future<void> insertWorkoutRecord(WorkoutRecord workoutRecord) async {
+
+      final db = await instance.database;
+
+      await db.insert(
+
+        'workout_records',
+
+        workoutRecord.toMap(),
+
+        conflictAlgorithm: ConflictAlgorithm.replace,
+
+      );
+
+    }
+
+  
+
+    Future<List<Workout>> getWorkout() async {
+
+      final db = await instance.database;
+
+      final List<Map<String, dynamic>> maps = await db.query('workouts');
+
+      return maps.map((map) => Workout.fromMap(map)).toList();
+
+    }
+
+  
+
+    Future<List<WorkoutRecord>> getWorkoutRecords(int workoutId) async {
+
+      final db = await instance.database;
+
+      final List<Map<String, dynamic>> maps = await db.query(
+
+        'workout_records',
+
+        where: 'workoutId = ?',
+
+        whereArgs: [workoutId],
+
+        orderBy: 'timeStamp DESC',
+
+      );
+
+      return maps.map((map) => WorkoutRecord.fromMap(map)).toList();
+
+    }
+
+  
+
+    Future<int> getWorkoutCount() async {
+
+      final db = await instance.database;
+
+      final count = Sqflite.firstIntValue(
+
+        await db.rawQuery('SELECT COUNT(*) FROM workouts'),
+
+      );
+
+      return count ?? 0;
+
+    }
+
+  }
+
+  
+
+diet_logic.dart
+
+home_logic.dart
+    final List<HomeLogic> data = [
+
+      HomeLogic(day: "Mon", repitition: 20, accuracy: 78),
+
+      HomeLogic(day: "Tue", repitition: 25, accuracy: 76),
+
+      HomeLogic(day: "Wed", repitition: 25, accuracy: 80),
+
+      HomeLogic(day: "Thu", repitition: 25, accuracy: 83),
+
+      HomeLogic(day: "Fri", repitition: 30, accuracy: 85),
+
+      HomeLogic(day: "Sat", repitition: 31, accuracy: 77),
+
+      HomeLogic(day: "Sun", repitition: 35, accuracy: 88),
+
+    ];
+
+  
+
+  class HomeLogic {
+
+    final String day;
+
+    final int repitition;
+
+    final double accuracy;
+
+    bool isSelected;
+
+    
+
+    HomeLogic({
+
+      required this.day,
+
+      required this.repitition,
+
+      required this.accuracy,
+
+      this.isSelected = false,
+
+    });
+
+  
+
+    // Calculate fill percentage based on accuracy (0-100%)
+
+    double get fillPercentage => accuracy / 100;
+
+  }
+
+workout_logic.dart
+  import 'package:flutter/material.dart';
+
+  import 'package:flutter_application_1/models/workout_record_model.dart';
+
+  import '../models/workout_model.dart';
+
+  import '../database/database_service.dart';
+
+  
+
+  class WorkoutProvide extends ChangeNotifier {
+
+    List<Workout> _workout = [];
+
+    List<WorkoutRecord> _workoutRecord = [];  
+
+    Workout? _selectedWorkout;
+
+    bool _isLoading = true;
+
+    String? _errorMessage;
+
+  
+
+    List<Workout> get workout => _workout;
+
+    List<WorkoutRecord> get workoutRecord => _workoutRecord;
+
+    Workout? get selectedWorkout => _selectedWorkout;
+
+    bool get isLoading => _isLoading;
+
+    String? get errorMessage => _errorMessage;
+
+  
+
+    Future<void> initializeApp() async {
+
+      _isLoading = true;
+
+      _errorMessage = null;
+
+      notifyListeners();
+
+  
+
+      try {
+
+        int count = await DatabaseService.instance.getWorkoutCount();
+
+  
+
+        if (count == 0) {
+
+          List<Workout> defaults = [
+
+            Workout(
+
+              name: 'Push-ups',
+
+              description:
+
+                  'A basic upper body exercise that strengthens the chest, shoulders, and triceps.',
+
+              imageUrl: 'assets/images/pushup.jpg',
+
+              duration: 30,
+
+              instruction: [
+
+                'Setup',
+
+                'Get down on the floor, face down',
+
+                'Place your hands slightly wider than shoulder-width apart',
+
+                'Keep your feet together (or slightly apart for balance)',
+
+                'Straighten your arms fully',
+
+                'Body Position',
+
+                'Keep your body in a straight line (head -> shoulders -> hips -> heels)',
+
+                'Engage your core (tighten your abs)',
+
+                "Don't let your hips sag or stick up",
+
+                'Lowering Phase',
+
+                'Slowly bend your elbows',
+
+                'Lower your chest toward the ground',
+
+                'Keep elbows at about a 45-degree angle from your body (not flaring out too much)',
+
+                'Bottom Position',
+
+                'Stop when your chest is just above the floor',
+
+                'Keep your body straight (no collapsing)',
+
+                'Pushing Up',
+
+                'Push through your palms',
+
+                'Straighten your arms back to the starting position',
+
+                'Exhale as you push up',
+
+              ],
+
+            ),
+
+            Workout(
+
+              name: 'pullups',
+
+              description: 'Great for back and biceps.',
+
+              imageUrl: 'assets/images/pullups.jpg',
+
+              duration: 30,
+
+              instruction: [
+
+                'Setup',
+
+                'Grab the pull-up bar with your palms facing away from you (overhand grip)',
+
+                'Hands should be slightly wider than shoulder-width apart',
+
+                'Hang with your arms fully extended and legs off the ground',
+
+                'Engage your core and back muscles',
+
+                'Pulling Up',
+
+                'Pull yourself up by driving your elbows down toward your hips',
+
+                'Keep your chest up and shoulders back',
+
+                'Continue pulling until your chin is above the bar',
+
+                'Lowering Down',
+
+                'Slowly lower yourself back to the starting position with control',
+
+                'Fully extend your arms at the bottom before starting the next rep',
+
+              ],
+
+            ),
+
+            Workout(
+
+              name: 'Squats',
+
+              description:
+
+                  'A fundamental lower body exercise that targets the thighs, hips, and buttocks.',
+
+              imageUrl: 'assets/images/squat.jpg',
+
+              duration: 30,
+
+              instruction: [
+
+                'Setup',
+
+                'Stand with your feet shoulder-width apart',
+
+                'Toes should be slightly pointed out (about 15-30 degrees)',
+
+                'Keep your chest up and shoulders back',
+
+                'Engage your core muscles',
+
+                'Squatting Down',
+
+                'Initiate the movement by pushing your hips back as if sitting in a chair',
+
+                'Bend your knees and lower your body down',
+
+                'Keep your weight on your heels (not on your toes)',
+
+                'Lower until your thighs are at least parallel to the ground (or as low as comfortable)',
+
+                'Pushing Up',
+
+                'Drive through your heels to return to the starting position',
+
+                'Straighten your legs and squeeze your glutes at the top',
+
+                'Exhale as you push up',
+
+              ],
+
+            ),
+
+            Workout(
+
+              name: 'Sit up',
+
+              description: 'An abdominal exercise that strengthens the core muscles.',
+
+              imageUrl: 'assets/images/situp.jpg',
+
+              duration: 30,
+
+              instruction: [
+
+                'Setup',
+
+                'Lie on your back with your knees bent and feet flat on the ground',
+
+                'Place your hands behind your head or across your chest',
+
+                'Engage your core muscles',
+
+                'Lifting Phase',
+
+                'Sit up by lifting your shoulders off the ground',
+
+                'Keep your elbows close to your ears',
+
+                'Lowering Phase',
+
+                'Slowly lower yourself back to the starting position',
+
+              ],
+
+            ),
+
+          ];
+
+          for (var workout in defaults) {
+
+            await DatabaseService.instance.insertWorkout(workout);
+
+          }
+
+        }
+
+  
+
+        await refreshWorkouts();
+
+      } catch (e) {
+
+        _errorMessage = e.toString();
+
+      } finally {
+
+        _isLoading = false;
+
+        notifyListeners();
+
+      }
+
+    }
+
+  
+
+    Future<void> refreshWorkouts() async {
+
+      _workout = await DatabaseService.instance.getWorkout();
+
+      notifyListeners(); // Shouts to the UI to update!
+
+    }
+
+  
+
+    void selectWorkout(Workout? workout){
+
+      _selectedWorkout = workout;
+
+      if (workout != null) {
+
+        fetchHistory(workout.id!);
+
+      }
+
+      notifyListeners();
+
+    }
+
+  
+
+    Future<void> fetchHistory(int workoutId) async {
+
+      _workoutRecord = await DatabaseService.instance.getWorkoutRecords(workoutId);
+
+      notifyListeners();
+
+    }
+
+  
+
+    Future<void> saveRecord({required int workoutId, required int duration, required int reps, required int sets, required String notes}) async {
+
+      WorkoutRecord record = WorkoutRecord(
+
+        id: 0,
+
+        workoutId: workoutId,
+
+        date: DateTime.now(),
+
+        timeStamp: DateTime.now().millisecondsSinceEpoch,
+
+        duration: duration,
+
+        reps: reps,
+
+        sets: sets,
+
+        notes: notes,
+
+      );
+
+      await DatabaseService.instance.insertWorkoutRecord(record);
+
+      await fetchHistory(_selectedWorkout!.id!);
+
+    }
+
+  }
+
+  
+
+faultrecord.dart
+  import 'package:kwon_mediapipe_landmarker/kwon_mediapipe_landmarker.dart' as kwon;
+
+  
+
+  class FaultRecord {
+
+    final int elapsedSeconds;
+
+    final String workoutName;
+
+    final int score;
+
+    final List<kwon.Landmark> landmarks; //the skeleton data
+
+    
+
+    FaultRecord({
+
+      required this.elapsedSeconds,
+
+      required this.workoutName,
+
+      required this.score,
+
+      required this.landmarks,
+
+    });
+
+  
+
+    //Convert to JSON for data storage
+
+    Map<String, dynamic> toJson() {
+
+      return {
+
+        'elapsedSeconds': elapsedSeconds,
+
+        'workoutName': workoutName,
+
+        'score': score,
+
+        'landmarks': landmarks.map((lm) => lm.toMap()).toList(),
+
+      };
+
+    }
+
+  
+
+    //read the data from JSON
+
+    factory FaultRecord.fromJson(Map<String, dynamic> json) {
+
+      return FaultRecord(
+
+        elapsedSeconds: json['elapsedSeconds'] as int,
+
+        workoutName: json['workoutName'] as String,
+
+        score: json['score'] as int,
+
+        landmarks: (json['landmarks'] as List)
+
+            .map((lm) => kwon.Landmark.fromMap(lm as Map<String, dynamic>)).toList(),
+
+  
+
+      );
+
+    }
+
+  }
+
+workout_model.dart
+  import 'dart:convert';
+
+  class Workout {
+
+    final int? id;
+
+    final String name;
+
+    final int duration;
+
+    final String description;
+
+    final List<String> instruction;
+
+    final String imageUrl;
+
+    
+
+    Workout({
+
+      this.id,
+
+      required this.name,
+
+      required this.duration,
+
+      required this.description,
+
+      required this.instruction,
+
+      required this.imageUrl,
+
+    });
+
+    Map<String, dynamic> toMap() {
+
+      return <String, dynamic>{
+
+        'id': id,
+
+        'name': name,
+
+        'duration': duration,
+
+        'description': description,
+
+        'instruction': jsonEncode(instruction),
+
+        'imageUrl': imageUrl,
+
+      };
+
+    }
+
+    factory Workout.fromMap(Map<String, dynamic> map) {
+
+      return Workout(
+
+        id: map['id'] as int?,
+
+        name: map['name'] as String,
+
+        duration: map['duration'] as int,
+
+        description: map['description'] as String,
+
+        instruction: List<String>.from(jsonDecode(map['instruction'] as String)),
+
+        imageUrl: map['imageUrl'] as String,
+
+      );
+
+    }
+
+  }
+
+workout_record_model.dart
+  
+
+  class WorkoutRecord {
+
+    final int id;
+
+    final int workoutId;
+
+    final DateTime date;
+
+    final int timeStamp;
+
+    final int duration;
+
+    final int reps;
+
+    final int sets;
+
+    final String notes;
+
+  
+
+    WorkoutRecord({
+
+      required this.id,
+
+      required this.workoutId,
+
+      required this.date,
+
+      required this.timeStamp,
+
+      required this.duration,
+
+      required this.reps,
+
+      required this.sets,
+
+      required this.notes,
+
+    });
+
+  
+
+    Map<String, dynamic> toMap(){
+
+      return <String, dynamic>{
+
+        'id': id,
+
+        'workoutId': workoutId,
+
+        'date': date.toIso8601String(),
+
+        'timeStamp': timeStamp,
+
+        'duration': duration,
+
+        'reps': reps,
+
+        'sets': sets,
+
+        'notes': notes,
+
+      };
+
+    }
+
+  
+
+    factory WorkoutRecord.fromMap(Map<String, dynamic> map){
+
+      return WorkoutRecord(
+
+        id: map['id'] as int,
+
+        workoutId: map['workoutId'] as int,
+
+        date: DateTime.parse(map['date'] as String),
+
+        timeStamp: map['timeStamp'] as int,
+
+        duration: map['duration'] as int,
+
+        reps: map['reps'] as int,
+
+        sets: map['sets'] as int,
+
+        notes: map['notes'] as String,
+
+      );
+
+    }
+
+  
+
+  
+
+  }
+
+camera_tracking_ui.dart
+  import 'dart:async';
+
+  
+
+  //files imports
+
+  import '../models/faultrecord.dart';
+
+  
+
+  //package imports
+
+  import 'package:flutter/material.dart';
+
+  import 'package:camera/camera.dart';
+
+  import 'package:permission_handler/permission_handler.dart';
+
+  import 'package:kwon_mediapipe_landmarker/kwon_mediapipe_landmarker.dart' as kwon;
+
+  
+
+  class CameraTrackingUI extends StatefulWidget {
+
+    const CameraTrackingUI({
+
+      super.key,
+
+      required this.workoutName,
+
+      required this.instructions,
+
+    });
+
+  
+
+    final String workoutName;
+
+    final List<String> instructions;
+
+  
+
+    @override
+
+    State<CameraTrackingUI> createState() => _CameraTrackingUIState();
+
+  }
+
+  
+
+  class _CameraTrackingUIState extends State<CameraTrackingUI> {
+
+    final List<FaultRecord> faultRecords = []; //to store the temporary fault records during the session
+
+    int _lastFaultScore = 100; //track last fault score to prevent duplicate consecutive records
+
+    
+
+    CameraController? _cameraController;
+
+    bool _isCameraInitialized = false;
+
+    bool _isPermissionDenied = false;
+
+    CameraLensDirection _currentLens = CameraLensDirection.back;
+
+  
+
+    bool _isMediaPipeReady = false;
+
+    bool _isProcessingFrame = false;
+
+    DateTime _lastProcess = DateTime.fromMillisecondsSinceEpoch(0);
+
+    DateTime _lastUiUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
+    List<kwon.Landmark> _poseLandmarks = [];
+
+    int _score = 0;
+
+  
+
+    bool _isTracking = false;
+
+    Timer? _timer;
+
+    int _elapsedSeconds = 0;
+
+  
+
+    // Sit-up tracking
+
+    bool _wasInSitupUpPosition = false;
+
+    int _situpRepCount = 0;
+
+  
+
+    @override
+
+    void initState() {
+
+      super.initState();
+
+      _initializeCamera();
+
+    }
+
+  
+
+    Future<void> _initializeCamera() async {
+
+      setState(() {
+
+        _isPermissionDenied = false;
+
+        _isCameraInitialized = false;
+
+      });
+
+  
+
+      final status = await Permission.camera.request();
+
+      if (!mounted) return;
+
+  
+
+      if (status.isDenied || status.isPermanentlyDenied) {
+
+        setState(() => _isPermissionDenied = true);
+
+        return;
+
+      }
+
+  
+
+      try {
+
+        final cameras = await availableCameras();
+
+        if (!mounted) return;
+
+  
+
+        if (cameras.isEmpty) {
+
+          setState(() {
+
+            _isPermissionDenied = false;
+
+            _isCameraInitialized = false;
+
+          });
+
+          return;
+
+        }
+
+  
+
+        final camera = cameras.firstWhere(
+
+          (c) => c.lensDirection == _currentLens,
+
+          orElse: () => cameras.first,
+
+        );
+
+  
+
+        _cameraController = CameraController(
+
+          camera,
+
+          ResolutionPreset.medium,
+
+          imageFormatGroup: ImageFormatGroup.yuv420,
+
+        );
+
+        await _cameraController!.initialize();
+
+  
+
+        if (!mounted) return;
+
+  
+
+        setState(() {
+
+          _isCameraInitialized = true;
+
+          _isPermissionDenied = false;
+
+        });
+
+      } catch (e) {
+
+        if (!mounted) return;
+
+        setState(() {
+
+          _isCameraInitialized = false;
+
+          _isPermissionDenied = false;
+
+        });
+
+        debugPrint('Error initializing camera: $e');
+
+      }
+
+    }
+
+  
+
+    void _toggleTracking() {
+
+      setState(() {
+
+        _isTracking = !_isTracking;
+
+  
+
+        if (_isTracking) {
+
+          _ensureMediaPipeReady();
+
+          _startImageStream();
+
+          _elapsedSeconds = 0;
+
+          _lastFaultScore = 100; // Reset fault tracking
+
+          _wasInSitupUpPosition = false; // Reset sit-up tracking
+
+          _situpRepCount = 0;
+
+          _timer?.cancel();
+
+          _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+
+            if (!mounted) {
+
+              timer.cancel();
+
+              return;
+
+            }
+
+            setState(() => _elapsedSeconds++);
+
+          });
+
+        } else {
+
+          _stopImageStream();
+
+          _poseLandmarks = [];
+
+          _timer?.cancel();
+
+          _timer = null;
+
+          if (faultRecords.isNotEmpty) {
+
+            debugPrint('Caught ${faultRecords.length} bad frames for ${widget.workoutName}:');
+
+            for (var record in faultRecords) {
+
+              debugPrint('Time: ${record.elapsedSeconds}s, Score: ${record.score}, Landmarks: ${record.landmarks.length}');
+
+            }
+
+          } else {
+
+            debugPrint('Perfect set! No faults detected for ${widget.workoutName}.');
+
+          }
+
+        }
+
+      });
+
+    }
+
+  
+
+    Future<void> _ensureMediaPipeReady() async {
+
+      if (_isMediaPipeReady) return;
+
+      try {
+
+        if (kwon.KwonMediapipeLandmarker.isInitialized) {
+
+          await kwon.KwonMediapipeLandmarker.dispose();
+
+        }
+
+        await kwon.KwonMediapipeLandmarker.initialize(face: false, pose: true);
+
+        if (!mounted) return;
+
+        setState(() => _isMediaPipeReady = true);
+
+      } catch (e) {
+
+        if (!mounted) return;
+
+        setState(() {
+
+          _isMediaPipeReady = false;
+
+          _poseLandmarks = [];
+
+        });
+
+        debugPrint('MediaPipe init failed: $e');
+
+      }
+
+    }
+
+  
+
+    void _startImageStream() {
+
+      if (_cameraController == null) return;
+
+      try {
+
+        _cameraController!.startImageStream(_onCameraFrame);
+
+      } catch (e) {
+
+        debugPrint('startImageStream failed: $e');
+
+      }
+
+    }
+
+  
+
+    Future<void> _stopImageStream() async {
+
+      try {
+
+        await _cameraController?.stopImageStream();
+
+      } catch (_) {}
+
+    }
+
+  
+
+    Future<void> _onCameraFrame(CameraImage image) async {
+
+      if (!_isMediaPipeReady || _isProcessingFrame) return;
+
+      if (DateTime.now().difference(_lastProcess).inMilliseconds < 120) return;
+
+      _lastProcess = DateTime.now();
+
+      _isProcessingFrame = true;
+
+  
+
+      try {
+
+        final planes = image.planes.map((p) => p.bytes).toList();
+
+        final bytesPerRow = image.planes.map((p) => p.bytesPerRow).toList();
+
+        final format = image.format.group.name.toLowerCase();
+
+        final rotation = _cameraController?.description.sensorOrientation ?? 0;
+
+  
+
+        final result = await kwon.KwonMediapipeLandmarker.detectFromCamera(
+
+          planes: planes,
+
+          width: image.width,
+
+          height: image.height,
+
+          rotation: rotation,
+
+          format: format,
+
+          bytesPerRow: bytesPerRow,
+
+        );
+
+  
+
+        if (!mounted) return;
+
+        final pose = result.pose;
+
+        final landmarks = pose?.landmarks ?? [];
+
+        final newScore = _computeScore(landmarks);
+
+        final now = DateTime.now();
+
+  
+
+        // Only record fault if score drops below 70 and is different from last recorded fault
+
+        if(newScore < 70 && _isTracking && _lastFaultScore >= 70) {
+
+          faultRecords.add(FaultRecord(
+
+            elapsedSeconds: _elapsedSeconds,
+
+            workoutName: widget.workoutName,
+
+            score: newScore,
+
+            landmarks: landmarks,
+
+          ));
+
+          _lastFaultScore = newScore;
+
+        } else if (newScore >= 70) {
+
+          _lastFaultScore = newScore; // Reset when score recovers
+
+        }
+
+        
+
+        if (now.difference(_lastUiUpdate).inMilliseconds >= 140) {
+
+          _lastUiUpdate = now;
+
+          setState(() {
+
+            _poseLandmarks = landmarks;
+
+            _score = newScore;
+
+          });
+
+        }
+
+      } catch (e) {
+
+        debugPrint('MediaPipe detect failed: $e');
+
+      } finally {
+
+        _isProcessingFrame = false;
+
+      }
+
+    }
+
+  
+
+    int _computeScore(List<kwon.Landmark> landmarks) {
+
+      if (landmarks.isEmpty) return 0;
+
+      
+
+      // Calculate base visibility score
+
+      final withVisibility = landmarks.where((lm) => lm.visibility != null).toList();
+
+      int baseScore;
+
+      if (withVisibility.isEmpty) {
+
+        baseScore = (landmarks.length / 33.0 * 100).clamp(0, 100).round();
+
+      } else {
+
+        final avg = withVisibility
+
+                .map((lm) => lm.visibility ?? 0)
+
+                .fold<double>(0, (sum, v) => sum + v) /
+
+            withVisibility.length;
+
+        baseScore = (avg * 100).clamp(0, 100).round();
+
+      }
+
+  
+
+      // Apply workout-specific penalties
+
+      int finalScore = baseScore;
+
+  
+
+      // Squat form validation
+
+      if (widget.workoutName.toLowerCase() == 'squats') {
+
+        try {
+
+          final poseResult = kwon.PoseResult(
+
+            landmarks: landmarks,
+
+            worldLandmarks: [],
+
+            segmentationMasks: [],
+
+          );
+
+  
+
+          if (!poseResult.isSquatFormCorrect(offset: 1.0)) {
+
+            final alignment = poseResult.shoulderFeetAlignment;
+
+            final penalty = (alignment * 10).toInt();
+
+            finalScore = (finalScore - penalty).clamp(0, 100);
+
+            
+
+            debugPrint(
+
+              'Squat Form - Alignment: ${alignment.toStringAsFixed(3)}, '
+
+              'Penalty: $penalty points, Score: $baseScore -> $finalScore'
+
+            );
+
+          }
+
+        } catch (e) {
+
+          debugPrint('Squat validation error: $e');
+
+        }
+
+      }
+
+  
+
+      // Push-up form validation
+
+      if (widget.workoutName.toLowerCase() == 'push-ups') {
+
+        try {
+
+          final poseResult = kwon.PoseResult(
+
+            landmarks: landmarks,
+
+            worldLandmarks: [],
+
+            segmentationMasks: [],
+
+          );
+
+  
+
+          final armAngle = poseResult.pushupArmAngle;
+
+          final isStartingPositionCorrect =
+
+              poseResult.isPushupStartingPositionCorrect(angleTolerance: 30);
+
+          final isBottomPositionCorrect =
+
+              poseResult.isPushupBottomPositionCorrect(angleTolerance: 30);
+
+  
+
+          // Apply penalty if not in either correct position
+
+          if (!isStartingPositionCorrect && !isBottomPositionCorrect) {
+
+            final distanceFromIdeal = ((armAngle - 90).abs() - 90).abs();
+
+            final penalty = ((distanceFromIdeal / 90) * 50).clamp(0, 50).toInt();
+
+            finalScore = (finalScore - penalty).clamp(0, 100);
+
+            
+
+            debugPrint(
+
+              'Pushup Form - Arm Angle: ${armAngle.toStringAsFixed(1)}Â°, '
+
+              'Penalty: $penalty points, Score: $baseScore -> $finalScore'
+
+            );
+
+          }
+
+        } catch (e) {
+
+          debugPrint('Pushup validation error: $e');
+
+        }
+
+      }
+
+  
+
+      return finalScore;
+
+    }
+
+  
+
+    Future<void> _flipCamera() async {
+
+      if (_isTracking) {
+
+        _toggleTracking();
+
+      }
+
+  
+
+      await _stopImageStream();
+
+      await _cameraController?.dispose();
+
+      _cameraController = null;
+
+  
+
+      setState(() {
+
+        _currentLens = _currentLens == CameraLensDirection.back
+
+            ? CameraLensDirection.front
+
+            : CameraLensDirection.back;
+
+        _isCameraInitialized = false;
+
+      });
+
+  
+
+      await _initializeCamera();
+
+    }
+
+  
+
+    String get _primaryInstruction {
+
+      if (widget.instructions.isNotEmpty) {
+
+        final trimmed = widget.instructions.where((step) => step.trim().isNotEmpty).toList();
+
+        if (trimmed.isEmpty) {
+
+          return 'Keep your full body in frame before starting.';
+
+        }
+
+        if (trimmed.length == 1) {
+
+          return trimmed.first;
+
+        }
+
+        return '${trimmed[0]}\n${trimmed[1]}';
+
+      }
+
+      return 'Keep your full body in frame before starting.';
+
+    }
+
+  
+
+    @override
+
+    void dispose() {
+
+      _stopImageStream();
+
+      _cameraController?.dispose();
+
+      _timer?.cancel();
+
+      _timer = null;
+
+      kwon.KwonMediapipeLandmarker.dispose();
+
+      super.dispose();
+
+    }
+
+  
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      if (_isPermissionDenied) {
+
+        return Scaffold(
+
+          backgroundColor: Colors.black,
+
+          body: Center(
+
+            child: Column(
+
+              mainAxisAlignment: MainAxisAlignment.center,
+
+              children: [
+
+                const Text('Camera access is required for tracking.', style: TextStyle(color: Colors.white)),
+
+                const SizedBox(height: 20),
+
+                ElevatedButton(
+
+                  onPressed: () => openAppSettings(),
+
+                  child: const Text('Open Settings'),
+
+                ),
+
+                TextButton(
+
+                  onPressed: _initializeCamera,
+
+                  child: const Text('Retry', style: TextStyle(color: Colors.orange)),
+
+                ),
+
+              ],
+
+            ),
+
+          ),
+
+        );
+
+      }
+
+  
+
+      if (!_isCameraInitialized || _cameraController == null) {
+
+        return const Scaffold(
+
+          backgroundColor: Colors.black,
+
+          body: Center(child: CircularProgressIndicator(color: Colors.orange)),
+
+        );
+
+      }
+
+  
+
+      return Scaffold(
+
+        backgroundColor: Colors.black,
+
+        body: Stack(
+
+          children: [
+
+            Positioned.fill(
+
+              child: CameraPreview(_cameraController!),
+
+            ),
+
+  
+
+            if (_isTracking)
+
+              Positioned.fill(
+
+                child: CustomPaint(
+
+                  painter: _PoseOverlayPainter(
+
+                    landmarks: _poseLandmarks,
+
+                    mirror: _currentLens == CameraLensDirection.front,
+
+                  ),
+
+                ),
+
+              ),
+
+  
+
+            Positioned(
+
+              top: 40,
+
+              left: 16,
+
+              child: IconButton(
+
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+
+                onPressed: () => Navigator.pop(context),
+
+              ),
+
+            ),
+
+  
+
+            Positioned(
+
+              top: 40,
+
+              right: 16,
+
+              child: IconButton(
+
+                icon: const Icon(Icons.flip_camera_android, color: Colors.white, size: 28),
+
+                onPressed: _flipCamera,
+
+              ),
+
+            ),
+
+  
+
+            Positioned(
+
+              bottom: 40,
+
+              left: 0,
+
+              right: 0,
+
+              child: Column(
+
+                children: [
+
+                  Padding(
+
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+
+                    child: Container(
+
+                      padding: const EdgeInsets.all(12),
+
+                      decoration: BoxDecoration(
+
+                        color: Colors.black.withOpacity(0.6),
+
+                        borderRadius: BorderRadius.circular(12),
+
+                        border: Border.all(color: Colors.orange.withOpacity(0.7)),
+
+                      ),
+
+                      child: Column(
+
+                        children: [
+
+                          Text(
+
+                            _primaryInstruction,
+
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+
+                            textAlign: TextAlign.center,
+
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Text(
+
+                            'Score: ${_isTracking ? _score : '--'}',
+
+                            style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),
+
+                          ),
+
+                        ],
+
+                      ),
+
+                    ),
+
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  if (_isTracking)
+
+                    Text(
+
+                      'Time: $_elapsedSeconds sec',
+
+                      style: const TextStyle(color: Colors.orange, fontSize: 24, fontWeight: FontWeight.bold),
+
+                    ),
+
+                  const SizedBox(height: 10),
+
+                  ElevatedButton(
+
+                    style: ElevatedButton.styleFrom(
+
+                      backgroundColor: _isTracking ? Colors.red : Colors.orange,
+
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+
+                    ),
+
+                    onPressed: _toggleTracking,
+
+                    child: Text(
+
+                      _isTracking ? 'Stop Tracking' : 'Start Tracking',
+
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
+
+                    ),
+
+                  ),
+
+                ],
+
+              ),
+
+            ),
+
+          ],
+
+        ),
+
+      );
+
+    }
+
+  }
+
+  
+
+  class _PoseOverlayPainter extends CustomPainter {
+
+    _PoseOverlayPainter({required this.landmarks, required this.mirror});
+
+  
+
+    final List<kwon.Landmark> landmarks;
+
+    final bool mirror;
+
+  
+
+    @override
+
+    void paint(Canvas canvas, Size size) {
+
+      if (landmarks.isEmpty) return;
+
+  
+
+      final paint = Paint()
+
+        ..color = Colors.greenAccent
+
+        ..style = PaintingStyle.fill;
+
+  
+
+      for (final lm in landmarks) {
+
+        final x = mirror ? (1.0 - lm.x) : lm.x;
+
+        final offset = Offset(x * size.width, lm.y * size.height);
+
+        canvas.drawCircle(offset, 4, paint);
+
+      }
+
+    }
+
+  
+
+    @override
+
+    bool shouldRepaint(covariant _PoseOverlayPainter oldDelegate) {
+
+      return oldDelegate.landmarks != landmarks || oldDelegate.mirror != mirror;
+
+    }
+
+  }
+
+  
+
+diet_UI.dart
+
+homeUI.dart
+  import 'package:flutter/material.dart';
+
+  import "package:flutter_application_1/Logic/home_logic.dart";
+
+  
+
+  class HomeUI extends StatelessWidget {
+
+    final List<HomeLogic> data;
+
+    const HomeUI({super.key, required this.data});
+
+  
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      return Scaffold(
+
+        backgroundColor: const Color.fromARGB(255, 8, 14, 19),
+
+        appBar: AppBar(
+
+          backgroundColor: const Color.fromARGB(255, 8, 14, 19),
+
+          title: const Text(
+
+            "Random App Name",
+
+            style: TextStyle(
+
+              color: Color.fromARGB(255, 219, 209, 209),
+
+              fontSize: 20,
+
+              fontWeight: FontWeight.bold,
+
+            ),
+
+          ),
+
+        ),
+
+        body: HomeScreen(data: data),
+
+      );
+
+    }
+
+  }
+
+  
+
+  class HomeScreen extends StatefulWidget {
+
+    final List<HomeLogic> data;
+
+    const HomeScreen({super.key, required this.data});
+
+  
+
+    @override
+
+    State<HomeScreen> createState() => _HomeScreenState();
+
+  }
+
+  
+
+  class _HomeScreenState extends State<HomeScreen> {
+
+  
+
+      void toggleSelection(int index) {
+
+      setState(() {
+
+        widget.data[index].isSelected = !widget.data[index].isSelected;  // Modify data
+
+      });
+
+    }
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      return Column(
+
+        children: [
+
+          Container(
+
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+
+            decoration: BoxDecoration(
+
+              color: Color.fromARGB(255, 36, 37, 39),
+
+              borderRadius: BorderRadius.circular(20),
+
+            ),
+
+            height: 250,
+
+            child: Row(
+
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+
+              crossAxisAlignment: CrossAxisAlignment.end,
+
+              children: List.generate(widget.data.length, (index) {
+
+                return GestureDetector(
+
+                  onTap: () => toggleSelection(index), 
+
+                  child: _buildBar(widget.data[index]),
+
+                );
+
+              })
+
+            )
+
+          ),
+
+          Container(
+
+            margin: EdgeInsets.all(16),
+
+            padding: EdgeInsets.all(16),
+
+            decoration: BoxDecoration(
+
+              color: Color.fromARGB(255, 36, 37, 39),
+
+              borderRadius: BorderRadius.circular(20),
+
+            ),
+
+            height: 143,
+
+            child: Row(
+
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+
+                children: [
+
+                  Column(
+
+                    children: [
+
+                      Container(
+
+                        decoration: BoxDecoration(
+
+                          color: Color.fromARGB(255, 8, 14, 19),
+
+                          borderRadius: BorderRadius.circular(12),
+
+                          border: Border.all(color: Colors.orange, width: 2),
+
+                        ),
+
+                        width: 80,
+
+                        height: 80,
+
+                        child: Center(
+
+                          child: Text(
+
+                            "120g",
+
+                            style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                          ),
+
+                        ),
+
+                      ),
+
+                      SizedBox(height: 8),
+
+                      Text(
+
+                        "Calories",
+
+                        style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                      ),
+
+                    ],
+
+                  ),
+
+                  Column(
+
+                    children: [
+
+                      Container(
+
+                        decoration: BoxDecoration(
+
+                          color: Color.fromARGB(255, 8, 14, 19),
+
+                          borderRadius: BorderRadius.circular(12),
+
+                          border: Border.all(color: Colors.orange, width: 2),
+
+                        ),
+
+                        width: 80,
+
+                        height: 80,
+
+                        child: Center(
+
+                          child: Text(
+
+                            "100g",
+
+                            style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                          ),
+
+                        ),
+
+                      ),
+
+                      SizedBox(height: 8),
+
+                      Text(
+
+                        "Protein",
+
+                        style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                      ),
+
+                    ],
+
+                  ), 
+
+                  Column(
+
+                    children: [ 
+
+                      Container(
+
+                        decoration: BoxDecoration(
+
+                          color: Color.fromARGB(255, 8, 14, 19),
+
+                          borderRadius: BorderRadius.circular(12),
+
+                          border: Border.all(color: Colors.orange, width: 2),
+
+                        ),
+
+                        width: 80,
+
+                        height: 80,
+
+                        child: Center(
+
+                          child: Text(
+
+                            "150g",
+
+                            style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                          ),
+
+                        ),
+
+                      ),
+
+                      SizedBox(height: 8),
+
+                      Text(
+
+                        "Carbs",
+
+                        style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                      ),
+
+                    ],
+
+                  ),    
+
+                  Column(
+
+                    children: [
+
+                      Container(
+
+                        decoration: BoxDecoration(
+
+                          color: Color.fromARGB(255, 8, 14, 19),
+
+                          borderRadius: BorderRadius.circular(12),
+
+                          border: Border.all(color: Colors.orange, width: 2),
+
+                        ),
+
+                        width: 80,
+
+                        height: 80,
+
+                        child: Center(
+
+                          child: Text(
+
+                            "70g",
+
+                            style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                          ),
+
+                        ),
+
+                      ),
+
+                      SizedBox(height: 8),
+
+                      Text(
+
+                        "Fat",
+
+                        style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+
+                      ),
+
+                    ],
+
+                  ),  
+
+                ]
+
+            ),
+
+          ),
+
+        ],
+
+      );
+
+    }
+
+  }
+
+  
+
+  
+
+  Widget _buildBar(HomeLogic data) {
+
+    return Column(
+
+      mainAxisAlignment: MainAxisAlignment.end,
+
+      children: [
+
+        Opacity(
+
+           opacity: data.isSelected ? 1.0 : 0.0,
+
+           child: Container(
+
+             margin: const EdgeInsets.only(bottom: 10),
+
+             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+
+             decoration: BoxDecoration(
+
+               color: const Color.fromARGB(179, 201, 143, 95),
+
+               borderRadius: BorderRadius.circular(12),
+
+             ),
+
+             child: Column(
+
+               children: [
+
+                 Text(
+
+                   'Rep: ${data.repitition.toInt()}',
+
+                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+
+                 ),
+
+                 Text(
+
+                   'Acc: ${data.accuracy.toInt()}%',
+
+                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87),
+
+                 ),
+
+               ],
+
+             ),
+
+           ),
+
+         ),
+
+         Container(
+
+          width: 8,
+
+          height: 120,
+
+          decoration: BoxDecoration(
+
+            color: const Color.fromARGB(179, 26, 22, 17),
+
+            borderRadius: BorderRadius.circular(10),
+
+          ),
+
+          alignment: Alignment.bottomCenter,
+
+          child: FractionallySizedBox(
+
+            heightFactor: data.fillPercentage.clamp(0.0, 1.0),
+
+            child: Container(
+
+              decoration: BoxDecoration(
+
+                color: const Color.fromARGB(255, 206, 132, 21),
+
+                borderRadius: BorderRadius.circular(10),
+
+              ),
+
+            ),
+
+          ),
+
+        ),
+
+        const SizedBox(height: 12),
+
+        Text(
+
+          data.day,
+
+          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+
+        ),
+
+      ],
+
+    );
+
+  }
+
+workoutUI.dart
+  import 'package:flutter/material.dart';
+
+  import 'package:provider/provider.dart';
+
+  import '../Logic/workout_logic.dart';
+
+  
+
+  class WorkoutListScreen extends StatelessWidget {
+
+    final VoidCallback onWorkoutSelected;
+
+  
+
+    const WorkoutListScreen({super.key, required this.onWorkoutSelected});
+
+  
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      return Scaffold(
+
+        appBar: AppBar(title: const Text("Choose your workout"), backgroundColor: Colors.transparent),
+
+        body: Consumer<WorkoutProvide>(
+
+          builder: (context, provider, child) {
+
+            if (provider.isLoading) {
+
+              return const Center(child: CircularProgressIndicator(color: Colors.orange));
+
+            }
+
+  
+
+            if (provider.errorMessage != null) {
+
+              return Center(
+
+                child: Padding(
+
+                  padding: const EdgeInsets.all(16),
+
+                  child: Text(
+
+                    provider.errorMessage!,
+
+                    textAlign: TextAlign.center,
+
+                    style: const TextStyle(color: Colors.redAccent),
+
+                  ),
+
+                ),
+
+              );
+
+            }
+
+  
+
+            if (provider.workout.isEmpty) {
+
+              return const Center(
+
+                child: Text(
+
+                  'No workouts found.',
+
+                  style: TextStyle(color: Colors.white70),
+
+                ),
+
+              );
+
+            }
+
+  
+
+            return ListView.builder(
+
+              itemCount: provider.workout.length,
+
+              itemBuilder: (context, index) {
+
+                final workout = provider.workout[index];
+
+                return Card(
+
+                  color: const Color(0xFF2D2F36),
+
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+
+                  child: ListTile(
+
+                    leading: ClipRRect(
+
+                      borderRadius: BorderRadius.circular(8),
+
+                      child: Image.asset(
+
+                        workout.imageUrl,
+
+                        width: 60,
+
+                        height: 60,
+
+                        fit: BoxFit.cover,
+
+                        errorBuilder: (context, error, stackTrace) {
+
+                          return Container(
+
+                            width: 60,
+
+                            height: 60,
+
+                            decoration: BoxDecoration(
+
+                              color: Colors.grey[700],
+
+                              borderRadius: BorderRadius.circular(8),
+
+                            ),
+
+                            child: const Icon(Icons.image_not_supported, color: Colors.orange),
+
+                          );
+
+                        },
+
+                      ),
+
+                    ),
+
+                    title: Text(workout.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+
+                    subtitle: Text(workout.description, style: const TextStyle(color: Colors.grey)),
+
+                    trailing: const Icon(Icons.chevron_right, color: Colors.orange),
+
+                    onTap: () {
+
+                      provider.selectWorkout(workout);
+
+                      onWorkoutSelected(); // Tell Main to switch to the Detail tab
+
+                    },
+
+                  ),
+
+                );
+
+              },
+
+            );
+
+          },
+
+        ),
+
+      );
+
+    }
+
+  }
+
+workout_detail_screen.dart
+  import 'package:flutter/material.dart';
+
+  import 'package:provider/provider.dart';
+
+  import '../Logic/workout_logic.dart';
+
+  import 'camera_tracking_ui.dart';
+
+  
+
+  class WorkoutDetailScreen extends StatelessWidget {
+
+    const WorkoutDetailScreen({super.key});
+
+  
+
+    @override
+
+    Widget build(BuildContext context) {
+
+      return Scaffold(
+
+        appBar: AppBar(
+
+          title: const Text('Workout Detail'),
+
+          leading: IconButton(
+
+            icon: const Icon(Icons.arrow_back),
+
+            onPressed: () {
+
+              Provider.of<WorkoutProvide>(context, listen: false).selectWorkout(null);
+
+            },
+
+          ),
+
+        ),
+
+        body: Consumer<WorkoutProvide>(
+
+          builder: (context, provider, child) {
+
+            final workout = provider.selectedWorkout;
+
+            if (workout == null) {
+
+              return const Center(
+
+                child: Text('No workout selected'),
+
+              );
+
+            }
+
+  
+
+            return SingleChildScrollView(
+
+              padding: const EdgeInsets.all(16),
+
+              child: Column(
+
+                crossAxisAlignment: CrossAxisAlignment.start,
+
+                children: [
+
+                  // Workout Image
+
+                  ClipRRect(
+
+                    borderRadius: BorderRadius.circular(12),
+
+                    child: Image.asset(
+
+                      workout.imageUrl,
+
+                      width: double.infinity,
+
+                      height: 250,
+
+                      fit: BoxFit.cover,
+
+                      errorBuilder: (context, error, stackTrace) {
+
+                        return Container(
+
+                          width: double.infinity,
+
+                          height: 250,
+
+                          decoration: BoxDecoration(
+
+                            color: Colors.grey[700],
+
+                            borderRadius: BorderRadius.circular(12),
+
+                          ),
+
+                          child: const Icon(Icons.image_not_supported, color: Colors.orange, size: 60),
+
+                        );
+
+                      },
+
+                    ),
+
+                  ),
+
+                  const SizedBox(height: 20),
+
+  
+
+                  // Workout Name
+
+                  Text(
+
+                    workout.name,
+
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+
+                  ),
+
+                  const SizedBox(height: 8),
+
+  
+
+                  // Duration
+
+                  Row(
+
+                    children: [
+
+                      const Icon(Icons.timer, color: Colors.orange, size: 20),
+
+                      const SizedBox(width: 8),
+
+                      Text(
+
+                        '${workout.duration} seconds',
+
+                        style: const TextStyle(fontSize: 16, color: Colors.grey),
+
+                      ),
+
+                    ],
+
+                  ),
+
+                  const SizedBox(height: 16),
+
+  
+
+                  // Description
+
+                  Text(
+
+                    workout.description,
+
+                    style: const TextStyle(fontSize: 16, color: Colors.white70),
+
+                  ),
+
+                  const SizedBox(height: 24),
+
+  
+
+                  // Steps Section
+
+                  const Text(
+
+                    'Instructions',
+
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+
+                  ),
+
+                  const SizedBox(height: 12),
+
+  
+
+                  // Steps List
+
+                  ListView.builder(
+
+                    shrinkWrap: true,
+
+                    physics: const NeverScrollableScrollPhysics(),
+
+                    itemCount: workout.instruction.length,
+
+                    itemBuilder: (context, index) {
+
+                      final step = workout.instruction[index];
+
+                      return Padding(
+
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+
+                        child: Row(
+
+                          crossAxisAlignment: CrossAxisAlignment.start,
+
+                          children: [
+
+                            Container(
+
+                              width: 32,
+
+                              height: 32,
+
+                              decoration: BoxDecoration(
+
+                                color: Colors.orange,
+
+                                borderRadius: BorderRadius.circular(50),
+
+                              ),
+
+                              child: Center(
+
+                                child: Text(
+
+                                  '${index + 1}',
+
+                                  style: const TextStyle(
+
+                                    color: Colors.black,
+
+                                    fontWeight: FontWeight.bold,
+
+                                    fontSize: 14,
+
+                                  ),
+
+                                ),
+
+                              ),
+
+                            ),
+
+                            const SizedBox(width: 12),
+
+                            Expanded(
+
+                              child: Text(
+
+                                step,
+
+                                style: const TextStyle(fontSize: 15, color: Colors.white70),
+
+                              ),
+
+                            ),
+
+                          ],
+
+                        ),
+
+                      );
+
+                    },
+
+                  ),
+
+                  const SizedBox(height: 24),
+
+  
+
+                  // Camera AI Button
+
+                  SizedBox(
+
+                    width: double.infinity,
+
+                    height: 50,
+
+                    child: ElevatedButton.icon(
+
+                      style: ElevatedButton.styleFrom(
+
+                        backgroundColor: Colors.orange,
+
+                        shape: RoundedRectangleBorder(
+
+                          borderRadius: BorderRadius.circular(12),
+
+                        ),
+
+                      ),
+
+                      onPressed: () {
+
+                        Navigator.push(
+
+                          context,
+
+                          MaterialPageRoute(
+
+                            builder: (context) => CameraTrackingUI(
+
+                              workoutName: workout.name,
+
+                              instructions: workout.instruction,
+
+                            ),
+
+                          ),
+
+                        );
+
+                      },
+
+                      icon: const Icon(Icons.camera_alt, color: Colors.black),
+
+                      label: const Text(
+
+                        'Check Form with AI',
+
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+
+                      ),
+
+                    ),
+
+                  ),
+
+                  const SizedBox(height: 20),
+
+                ],
+
+              ),
+
+            );
+
+          },
+
+        ),
+
+      );
+
+    }
+
+  }
+
+  
+
+
+
+=== MEDIAPIPE LIB FOLDER ===
+src
+kwon_mediapipe_landmarker.dart
+  /// kwon_mediapipe_landmarker
+
+  ///
+
+  /// MediaPipe Face + Pose Landmarker Flutter Plugin
+
+  /// ì˜ì–´ ë©´ì ‘/í”„ë ˆì  í…Œì´ì…˜ ì—°ìŠµ ì•±ì—ì„œ í‘œì •, ì‹œì„ , ìžì„¸ ì‹¤ì‹œê°„ ë¶„ì„
+
+  library kwon_mediapipe_landmarker;
+
+  
+
+  // ë©”ì¸ í´ëž˜ìŠ¤
+
+  export 'src/landmarker.dart';
+
+  
+
+  // ì˜ˆì™¸ í´ëž˜ìŠ¤
+
+  export 'src/exceptions.dart';
+
+  
+
+  // ì„¤ì • í´ëž˜ìŠ¤
+
+  export 'src/options.dart';
+
+  
+
+  // ê²°ê³¼ í´ëž˜ìŠ¤
+
+  export 'src/result.dart';
+
+  
+
+  // ë°ì´í„° ëª¨ë¸
+
+  export 'src/landmark.dart';
+
+  
+
+  // ìƒìˆ˜
+
+  export 'src/constants/face_landmark_index.dart';
+
+  export 'src/constants/face_blendshape.dart';
+
+  export 'src/constants/pose_landmark_index.dart';
+
+  
+
+  // í—¬í¼ í™•ìž¥
+
+  export 'src/extensions/face_result_helper.dart';
+
+  export 'src/extensions/pose_result_helper.dart';
+
+  
+
+constants
+extensions
+platform
+exceptions.dart
+  /// Error codes for Landmarker operations
+
+  enum LandmarkerError {
+
+    /// Landmarker is not initialized. Call initialize() first.
+
+    notInitialized('NOT_INITIALIZED'),
+
+  
+
+    /// Model loading failed. Check if model files exist.
+
+    modelLoadFailed('MODEL_LOAD_FAILED'),
+
+  
+
+    /// Invalid or unsupported image format.
+
+    invalidImage('INVALID_IMAGE'),
+
+  
+
+    /// Detection process failed.
+
+    detectionFailed('DETECTION_FAILED'),
+
+  
+
+    /// Camera permission was denied by user.
+
+    cameraPermissionDenied('CAMERA_PERMISSION_DENIED'),
+
+  
+
+    /// Platform is not supported (only Android and iOS are supported).
+
+    platformNotSupported('PLATFORM_NOT_SUPPORTED'),
+
+  
+
+    /// Initialization failed.
+
+    initializationFailed('INITIALIZATION_FAILED'),
+
+  
+
+    /// Dispose operation failed.
+
+    disposeFailed('DISPOSE_FAILED'),
+
+  
+
+    /// Invalid arguments provided.
+
+    invalidArguments('INVALID_ARGUMENTS'),
+
+  
+
+    /// Context is not available (Android only).
+
+    noContext('NO_CONTEXT'),
+
+  
+
+    /// Unknown error occurred.
+
+    unknown('UNKNOWN');
+
+  
+
+    const LandmarkerError(this.code);
+
+  
+
+    /// Error code string
+
+    final String code;
+
+  
+
+    /// Get LandmarkerError from error code string
+
+    static LandmarkerError fromCode(String? code) {
+
+      if (code == null) return LandmarkerError.unknown;
+
+  
+
+      for (final error in LandmarkerError.values) {
+
+        if (error.code == code) {
+
+          return error;
+
+        }
+
+      }
+
+      return LandmarkerError.unknown;
+
+    }
+
+  }
+
+  
+
+  /// Exception thrown by Landmarker operations
+
+  class LandmarkerException implements Exception {
+
+    /// Creates a LandmarkerException with the given error type, message, and optional original error.
+
+    const LandmarkerException({
+
+      required this.error,
+
+      required this.message,
+
+      this.originalError,
+
+    });
+
+  
+
+    /// Creates a LandmarkerException from an error code string.
+
+    factory LandmarkerException.fromCode(
+
+      String? code,
+
+      String message, {
+
+      dynamic originalError,
+
+    }) {
+
+      return LandmarkerException(
+
+        error: LandmarkerError.fromCode(code),
+
+        message: message,
+
+        originalError: originalError,
+
+      );
+
+    }
+
+  
+
+    /// The type of error that occurred.
+
+    final LandmarkerError error;
+
+  
+
+    /// A human-readable description of the error.
+
+    final String message;
+
+  
+
+    /// The original error that caused this exception, if any.
+
+    final dynamic originalError;
+
+  
+
+    /// Error code string
+
+    String get code => error.code;
+
+  
+
+    @override
+
+    String toString() {
+
+      final buffer = StringBuffer('LandmarkerException(${error.code}): $message');
+
+      if (originalError != null) {
+
+        buffer.write('\nCaused by: $originalError');
+
+      }
+
+      return buffer.toString();
+
+    }
+
+  
+
+    @override
+
+    bool operator ==(Object other) {
+
+      if (identical(this, other)) return true;
+
+      return other is LandmarkerException &&
+
+          other.error == error &&
+
+          other.message == message;
+
+    }
+
+  
+
+    @override
+
+    int get hashCode => Object.hash(error, message);
+
+  }
+
+  
+
+landmark.dart
+  /// ëžœë“œë§ˆí¬ ì¢Œí‘œ
+
+  class Landmark {
+
+    /// ëžœë“œë§ˆí¬ ì¸ë±ìŠ¤ (0-based)
+
+    final int index;
+
+  
+
+    /// ì •ê·œí™”ëœ X ì¢Œí‘œ (0.0~1.0, ì´ë¯¸ì§€ ì™¼ìª½=0)
+
+    final double x;
+
+  
+
+    /// ì •ê·œí™”ëœ Y ì¢Œí‘œ (0.0~1.0, ì´ë¯¸ì§€ ìœ„=0)
+
+    final double y;
+
+  
+
+    /// ì •ê·œí™”ëœ Z ì¢Œí‘œ (ê¹Šì´, ìƒëŒ€ê°’)
+
+    final double z;
+
+  
+
+    /// ê°€ì‹œì„± (0.0~1.0, í•´ë‹¹ ë¶€ìœ„ê°€ ë³´ì´ëŠ” ì •ë„)
+
+    /// FaceëŠ” null, Poseë§Œ ìžˆìŒ
+
+    final double? visibility;
+
+  
+
+    /// ì¡´ìž¬ í™•ë¥  (0.0~1.0, í•´ë‹¹ ë¶€ìœ„ê°€ í”„ë ˆìž„ì— ìžˆëŠ” í™•ë¥ )
+
+    /// FaceëŠ” null, Poseë§Œ ìžˆìŒ
+
+    final double? presence;
+
+  
+
+    const Landmark({
+
+      required this.index,
+
+      required this.x,
+
+      required this.y,
+
+      required this.z,
+
+      this.visibility,
+
+      this.presence,
+
+    });
+
+  
+
+    /// Mapì—ì„œ Landmark ìƒì„±
+
+    factory Landmark.fromMap(Map<String, dynamic> map) {
+
+      return Landmark(
+
+        index: map['index'] as int,
+
+        x: (map['x'] as num).toDouble(),
+
+        y: (map['y'] as num).toDouble(),
+
+        z: (map['z'] as num).toDouble(),
+
+        visibility: map['visibility'] != null
+
+            ? (map['visibility'] as num).toDouble()
+
+            : null,
+
+        presence:
+
+            map['presence'] != null ? (map['presence'] as num).toDouble() : null,
+
+      );
+
+    }
+
+  
+
+    /// Landmarkë¥¼ Mapìœ¼ë¡œ ë³€í™˜
+
+    Map<String, dynamic> toMap() {
+
+      return {
+
+        'index': index,
+
+        'x': x,
+
+        'y': y,
+
+        'z': z,
+
+        if (visibility != null) 'visibility': visibility,
+
+        if (presence != null) 'presence': presence,
+
+      };
+
+    }
+
+  
+
+    @override
+
+    String toString() {
+
+      return 'Landmark(index: $index, x: ${x.toStringAsFixed(3)}, y: ${y.toStringAsFixed(3)}, z: ${z.toStringAsFixed(3)}'
+
+          '${visibility != null ? ', visibility: ${visibility!.toStringAsFixed(3)}' : ''}'
+
+          '${presence != null ? ', presence: ${presence!.toStringAsFixed(3)}' : ''})';
+
+    }
+
+  
+
+    @override
+
+    bool operator ==(Object other) {
+
+      if (identical(this, other)) return true;
+
+      return other is Landmark &&
+
+          other.index == index &&
+
+          other.x == x &&
+
+          other.y == y &&
+
+          other.z == z &&
+
+          other.visibility == visibility &&
+
+          other.presence == presence;
+
+    }
+
+  
+
+    @override
+
+    int get hashCode {
+
+      return Object.hash(index, x, y, z, visibility, presence);
+
+    }
+
+  }
+
+  
+
+landmarker.dart
+  import 'dart:async';
+
+  
+
+  import 'package:flutter/services.dart';
+
+  
+
+  import 'exceptions.dart';
+
+  import 'options.dart';
+
+  import 'result.dart';
+
+  import 'platform/platform_channel.dart';
+
+  
+
+  /// MediaPipe Face + Pose Landmarker í†µí•© ëž˜í¼
+
+  ///
+
+  /// ì˜ì–´ ë©´ì ‘/í”„ë ˆì  í…Œì´ì…˜ ì—°ìŠµ ì•±ì—ì„œ í‘œì •, ì‹œì„ , ìžì„¸ ì‹¤ì‹œê°„ ë¶„ì„ì— ì‚¬ìš©
+
+  ///
+
+  /// ```dart
+
+  /// // ì´ˆê¸°í™”
+
+  /// await KwonMediapipeLandmarker.initialize(
+
+  ///   face: true,
+
+  ///   pose: true,
+
+  /// );
+
+  ///
+
+  /// // ì´ë¯¸ì§€ ë¶„ì„
+
+  /// final result = await KwonMediapipeLandmarker.detect(imageBytes);
+
+  ///
+
+  /// // í•´ì œ
+
+  /// await KwonMediapipeLandmarker.dispose();
+
+  /// ```
+
+  class KwonMediapipeLandmarker {
+
+    KwonMediapipeLandmarker._();
+
+  
+
+    static bool _isInitialized = false;
+
+    static bool _faceEnabled = false;
+
+    static bool _poseEnabled = false;
+
+    static StreamSubscription<dynamic>? _streamSubscription;
+
+    static StreamController<LandmarkerResult>? _resultStreamController;
+
+  
+
+    /// ì´ˆê¸°í™” ìƒíƒœ í™•ì¸
+
+    static bool get isInitialized => _isInitialized;
+
+  
+
+    /// Face Landmarker í™œì„±í™” ì—¬ë¶€
+
+    static bool get isFaceEnabled => _faceEnabled;
+
+  
+
+    /// Pose Landmarker í™œì„±í™” ì—¬ë¶€
+
+    static bool get isPoseEnabled => _poseEnabled;
+
+  
+
+    /// ì´ˆê¸°í™” (ëª¨ë¸ ë¡œë“œ)
+
+    ///
+
+    /// [face] - Face Landmarker í™œì„±í™” ì—¬ë¶€ (ê¸°ë³¸ê°’: true)
+
+    /// [pose] - Pose Landmarker í™œì„±í™” ì—¬ë¶€ (ê¸°ë³¸ê°’: false)
+
+    /// [faceOptions] - Face Landmarker ì„¤ì •
+
+    /// [poseOptions] - Pose Landmarker ì„¤ì •
+
+    ///
+
+    /// ```dart
+
+    /// await KwonMediapipeLandmarker.initialize(
+
+    ///   face: true,
+
+    ///   pose: true,
+
+    ///   faceOptions: FaceOptions(
+
+    ///     numFaces: 1,
+
+    ///     outputBlendshapes: true,
+
+    ///   ),
+
+    /// );
+
+    /// ```
+
+    static Future<void> initialize({
+
+      bool face = true,
+
+      bool pose = false,
+
+      FaceOptions? faceOptions,
+
+      PoseOptions? poseOptions,
+
+    }) async {
+
+      if (_isInitialized) {
+
+        throw const LandmarkerException(
+
+          error: LandmarkerError.initializationFailed,
+
+          message: 'KwonMediapipeLandmarker is already initialized. '
+
+              'Call dispose() first before reinitializing.',
+
+        );
+
+      }
+
+  
+
+      if (!face && !pose) {
+
+        throw const LandmarkerException(
+
+          error: LandmarkerError.invalidArguments,
+
+          message: 'At least one of face or pose must be enabled.',
+
+        );
+
+      }
+
+  
+
+      final effectiveFaceOptions = faceOptions ?? const FaceOptions();
+
+      final effectivePoseOptions = poseOptions ?? const PoseOptions();
+
+  
+
+      try {
+
+        await PlatformChannel.channel.invokeMethod(
+
+          MethodNames.initialize,
+
+          {
+
+            ParamKeys.enableFace: face,
+
+            ParamKeys.enablePose: pose,
+
+            ParamKeys.faceNumFaces: effectiveFaceOptions.numFaces,
+
+            ParamKeys.faceMinDetectionConfidence:
+
+                effectiveFaceOptions.minDetectionConfidence,
+
+            ParamKeys.faceMinTrackingConfidence:
+
+                effectiveFaceOptions.minTrackingConfidence,
+
+            ParamKeys.faceOutputBlendshapes:
+
+                effectiveFaceOptions.outputBlendshapes,
+
+            ParamKeys.faceOutputTransformationMatrix:
+
+                effectiveFaceOptions.outputTransformationMatrix,
+
+            ParamKeys.poseNumPoses: effectivePoseOptions.numPoses,
+
+            ParamKeys.poseMinDetectionConfidence:
+
+                effectivePoseOptions.minDetectionConfidence,
+
+            ParamKeys.poseMinTrackingConfidence:
+
+                effectivePoseOptions.minTrackingConfidence,
+
+          },
+
+        );
+
+  
+
+        _isInitialized = true;
+
+        _faceEnabled = face;
+
+        _poseEnabled = pose;
+
+      } on PlatformException catch (e) {
+
+        throw LandmarkerException.fromCode(
+
+          e.code,
+
+          'Failed to initialize landmarker: ${e.message}',
+
+          originalError: e,
+
+        );
+
+      }
+
+    }
+
+  
+
+    /// ë‹¨ì¼ ì´ë¯¸ì§€ ë¶„ì„ (ì´ë¯¸ì§€ ë°”ì´íŠ¸)
+
+    ///
+
+    /// [imageBytes] - JPEG, PNG ë“± ì´ë¯¸ì§€ ë°”ì´íŠ¸
+
+    ///
+
+    /// ```dart
+
+    /// final imageBytes = await file.readAsBytes();
+
+    /// final result = await KwonMediapipeLandmarker.detect(imageBytes);
+
+    ///
+
+    /// if (result.hasFace) {
+
+    ///   print('ì‹œì„  ì ìˆ˜: ${result.face!.eyeContactScore}');
+
+    /// }
+
+    /// ```
+
+    static Future<LandmarkerResult> detect(Uint8List imageBytes) async {
+
+      _checkInitialized();
+
+  
+
+      try {
+
+        final result = await PlatformChannel.channel.invokeMethod<Map>(
+
+          MethodNames.detect,
+
+          {
+
+            ParamKeys.imageBytes: imageBytes,
+
+          },
+
+        );
+
+  
+
+        if (result == null) {
+
+          return LandmarkerResult(
+
+            timestampMs: DateTime.now().millisecondsSinceEpoch,
+
+          );
+
+        }
+
+  
+
+        return LandmarkerResult.fromMap(Map<String, dynamic>.from(result));
+
+      } on PlatformException catch (e) {
+
+        throw LandmarkerException.fromCode(
+
+          e.code,
+
+          'Detection failed: ${e.message}',
+
+          originalError: e,
+
+        );
+
+      }
+
+    }
+
+  
+
+    /// ì¹´ë©”ë¼ í”„ë ˆìž„ ë¶„ì„ (camera íŒ¨í‚¤ì§€ì˜ CameraImage í˜•ì‹)
+
+    ///
+
+    /// [planes] - YUV ì´ë¯¸ì§€ plane ë°ì´í„°
+
+    /// [width] - ì´ë¯¸ì§€ ë„ˆë¹„
+
+    /// [height] - ì´ë¯¸ì§€ ë†’ì´
+
+    /// [rotation] - ì´ë¯¸ì§€ íšŒì „ (0, 90, 180, 270)
+
+    /// [format] - ì´ë¯¸ì§€ í¬ë§· (ì˜ˆ: 'yuv420', 'nv21', 'bgra8888')
+
+    ///
+
+    /// ```dart
+
+    /// final result = await KwonMediapipeLandmarker.detectFromCamera(
+
+    ///   planes: image.planes.map((p) => p.bytes).toList(),
+
+    ///   width: image.width,
+
+    ///   height: image.height,
+
+    ///   rotation: camera.sensorOrientation,
+
+    ///   format: image.format.group.name,
+
+    /// );
+
+    /// ```
+
+    static Future<LandmarkerResult> detectFromCamera({
+
+      required List<Uint8List> planes,
+
+      required int width,
+
+      required int height,
+
+      required int rotation,
+
+      required String format,
+
+      List<int>? bytesPerRow,
+
+    }) async {
+
+      _checkInitialized();
+
+  
+
+      try {
+
+        final result = await PlatformChannel.channel.invokeMethod<Map>(
+
+          MethodNames.detect,
+
+          {
+
+            ParamKeys.planes: planes,
+
+            ParamKeys.imageWidth: width,
+
+            ParamKeys.imageHeight: height,
+
+            ParamKeys.imageRotation: rotation,
+
+            ParamKeys.imageFormat: format,
+
+            if (bytesPerRow != null) ParamKeys.bytesPerRow: bytesPerRow,
+
+          },
+
+        );
+
+  
+
+        if (result == null) {
+
+          return LandmarkerResult(
+
+            timestampMs: DateTime.now().millisecondsSinceEpoch,
+
+          );
+
+        }
+
+  
+
+        return LandmarkerResult.fromMap(Map<String, dynamic>.from(result));
+
+      } on PlatformException catch (e) {
+
+        throw LandmarkerException.fromCode(
+
+          e.code,
+
+          'Camera detection failed: ${e.message}',
+
+          originalError: e,
+
+        );
+
+      }
+
+    }
+
+  
+
+    /// ì¹´ë©”ë¼ í”„ë ˆìž„ ìŠ¤íŠ¸ë¦¼ ë¶„ì„ ì‹œìž‘
+
+    ///
+
+    /// EventChannelì„ í†µí•´ ë„¤ì´í‹°ë¸Œì—ì„œ ì§ì ‘ ê²°ê³¼ë¥¼ ë°›ìŒ
+
+    ///
+
+    /// ```dart
+
+    /// final stream = KwonMediapipeLandmarker.startStream();
+
+    /// stream.listen((result) {
+
+    ///   setState(() => _lastResult = result);
+
+    /// });
+
+    /// ```
+
+    static Stream<LandmarkerResult> startStream() {
+
+      _checkInitialized();
+
+  
+
+      // ê¸°ì¡´ ìŠ¤íŠ¸ë¦¼ì´ ìžˆìœ¼ë©´ ì •ë¦¬
+
+      _cleanupStream();
+
+  
+
+      _resultStreamController = StreamController<LandmarkerResult>.broadcast();
+
+  
+
+      _streamSubscription = PlatformChannel.eventChannel
+
+          .receiveBroadcastStream()
+
+          .listen(
+
+        (dynamic event) {
+
+          if (event is Map) {
+
+            final result = LandmarkerResult.fromMap(
+
+              Map<String, dynamic>.from(event),
+
+            );
+
+            _resultStreamController?.add(result);
+
+          }
+
+        },
+
+        onError: (dynamic error) {
+
+          _resultStreamController?.addError(
+
+            LandmarkerException(
+
+              error: LandmarkerError.detectionFailed,
+
+              message: 'Stream error: $error',
+
+              originalError: error,
+
+            ),
+
+          );
+
+        },
+
+      );
+
+  
+
+      // ë„¤ì´í‹°ë¸Œì— ìŠ¤íŠ¸ë¦¼ ì‹œìž‘ ì•Œë¦¼
+
+      PlatformChannel.channel.invokeMethod(MethodNames.startStream);
+
+  
+
+      return _resultStreamController!.stream;
+
+    }
+
+  
+
+    /// ì¹´ë©”ë¼ í”„ë ˆìž„ ìŠ¤íŠ¸ë¦¼ ë¶„ì„ ì¤‘ì§€
+
+    static Future<void> stopStream() async {
+
+      _cleanupStream();
+
+      await PlatformChannel.channel.invokeMethod(MethodNames.stopStream);
+
+    }
+
+  
+
+    /// ë¦¬ì†ŒìŠ¤ í•´ì œ
+
+    ///
+
+    /// ì•± ì¢…ë£Œ ë˜ëŠ” ë” ì´ìƒ ì‚¬ìš©í•˜ì§€ ì•Šì„ ë•Œ í˜¸ì¶œ
+
+    ///
+
+    /// ```dart
+
+    /// @override
+
+    /// void dispose() {
+
+    ///   KwonMediapipeLandmarker.dispose();
+
+    ///   super.dispose();
+
+    /// }
+
+    /// ```
+
+    static Future<void> dispose() async {
+
+      _cleanupStream();
+
+  
+
+      if (_isInitialized) {
+
+        try {
+
+          await PlatformChannel.channel.invokeMethod(MethodNames.dispose);
+
+        } catch (_) {
+
+          // ì´ë¯¸ í•´ì œëœ ê²½ìš° ë¬´ì‹œ
+
+        }
+
+      }
+
+  
+
+      _isInitialized = false;
+
+      _faceEnabled = false;
+
+      _poseEnabled = false;
+
+    }
+
+  
+
+    /// ì´ˆê¸°í™” ìƒíƒœ í™•ì¸
+
+    static void _checkInitialized() {
+
+      if (!_isInitialized) {
+
+        throw const LandmarkerException(
+
+          error: LandmarkerError.notInitialized,
+
+          message: 'KwonMediapipeLandmarker is not initialized. '
+
+              'Call initialize() first.',
+
+        );
+
+      }
+
+    }
+
+  
+
+    /// ìŠ¤íŠ¸ë¦¼ ì •ë¦¬
+
+    static void _cleanupStream() {
+
+      _streamSubscription?.cancel();
+
+      _streamSubscription = null;
+
+      _resultStreamController?.close();
+
+      _resultStreamController = null;
+
+    }
+
+  }
+
+  
+
+options.dart
+  /// Face Landmarker ì„¤ì •
+
+  class FaceOptions {
+
+    /// ìµœëŒ€ ê°ì§€ ì–¼êµ´ ìˆ˜ (ê¸°ë³¸ê°’: 1)
+
+    final int numFaces;
+
+  
+
+    /// ì–¼êµ´ ê°ì§€ ìµœì†Œ ì‹ ë¢°ë„ (0.0~1.0, ê¸°ë³¸ê°’: 0.5)
+
+    final double minDetectionConfidence;
+
+  
+
+    /// ì–¼êµ´ ì¶”ì  ìµœì†Œ ì‹ ë¢°ë„ (0.0~1.0, ê¸°ë³¸ê°’: 0.5)
+
+    final double minTrackingConfidence;
+
+  
+
+    /// ë¸”ë Œë“œì‰ìž… ì¶œë ¥ ì—¬ë¶€ (ê¸°ë³¸ê°’: true)
+
+    final bool outputBlendshapes;
+
+  
+
+    /// Transformation Matrix ì¶œë ¥ ì—¬ë¶€ (ê¸°ë³¸ê°’: false)
+
+    final bool outputTransformationMatrix;
+
+  
+
+    const FaceOptions({
+
+      this.numFaces = 1,
+
+      this.minDetectionConfidence = 0.5,
+
+      this.minTrackingConfidence = 0.5,
+
+      this.outputBlendshapes = true,
+
+      this.outputTransformationMatrix = false,
+
+    })  : assert(numFaces >= 1, 'numFaces must be at least 1'),
+
+          assert(minDetectionConfidence >= 0.0 && minDetectionConfidence <= 1.0,
+
+              'minDetectionConfidence must be between 0.0 and 1.0'),
+
+          assert(minTrackingConfidence >= 0.0 && minTrackingConfidence <= 1.0,
+
+              'minTrackingConfidence must be between 0.0 and 1.0');
+
+  
+
+    /// Mapìœ¼ë¡œ ë³€í™˜ (Platform Channelìš©)
+
+    Map<String, dynamic> toMap() {
+
+      return {
+
+        'numFaces': numFaces,
+
+        'minDetectionConfidence': minDetectionConfidence,
+
+        'minTrackingConfidence': minTrackingConfidence,
+
+        'outputBlendshapes': outputBlendshapes,
+
+        'outputTransformationMatrix': outputTransformationMatrix,
+
+      };
+
+    }
+
+  
+
+    /// ë³µì‚¬ë³¸ ìƒì„±
+
+    FaceOptions copyWith({
+
+      int? numFaces,
+
+      double? minDetectionConfidence,
+
+      double? minTrackingConfidence,
+
+      bool? outputBlendshapes,
+
+      bool? outputTransformationMatrix,
+
+    }) {
+
+      return FaceOptions(
+
+        numFaces: numFaces ?? this.numFaces,
+
+        minDetectionConfidence:
+
+            minDetectionConfidence ?? this.minDetectionConfidence,
+
+        minTrackingConfidence:
+
+            minTrackingConfidence ?? this.minTrackingConfidence,
+
+        outputBlendshapes: outputBlendshapes ?? this.outputBlendshapes,
+
+        outputTransformationMatrix:
+
+            outputTransformationMatrix ?? this.outputTransformationMatrix,
+
+      );
+
+    }
+
+  
+
+    @override
+
+    String toString() {
+
+      return 'FaceOptions(numFaces: $numFaces, minDetectionConfidence: $minDetectionConfidence, '
+
+          'minTrackingConfidence: $minTrackingConfidence, outputBlendshapes: $outputBlendshapes, '
+
+          'outputTransformationMatrix: $outputTransformationMatrix)';
+
+    }
+
+  }
+
+  
+
+  /// Pose Landmarker ì„¤ì •
+
+  class PoseOptions {
+
+    /// ìµœëŒ€ ê°ì§€ í¬ì¦ˆ ìˆ˜ (ê¸°ë³¸ê°’: 1)
+
+    final int numPoses;
+
+  
+
+    /// í¬ì¦ˆ ê°ì§€ ìµœì†Œ ì‹ ë¢°ë„ (0.0~1.0, ê¸°ë³¸ê°’: 0.5)
+
+    final double minDetectionConfidence;
+
+  
+
+    /// í¬ì¦ˆ ì¶”ì  ìµœì†Œ ì‹ ë¢°ë„ (0.0~1.0, ê¸°ë³¸ê°’: 0.5)
+
+    final double minTrackingConfidence;
+
+  
+
+    const PoseOptions({
+
+      this.numPoses = 1,
+
+      this.minDetectionConfidence = 0.5,
+
+      this.minTrackingConfidence = 0.5,
+
+    })  : assert(numPoses >= 1, 'numPoses must be at least 1'),
+
+          assert(minDetectionConfidence >= 0.0 && minDetectionConfidence <= 1.0,
+
+              'minDetectionConfidence must be between 0.0 and 1.0'),
+
+          assert(minTrackingConfidence >= 0.0 && minTrackingConfidence <= 1.0,
+
+              'minTrackingConfidence must be between 0.0 and 1.0');
+
+  
+
+    /// Mapìœ¼ë¡œ ë³€í™˜ (Platform Channelìš©)
+
+    Map<String, dynamic> toMap() {
+
+      return {
+
+        'numPoses': numPoses,
+
+        'minDetectionConfidence': minDetectionConfidence,
+
+        'minTrackingConfidence': minTrackingConfidence,
+
+      };
+
+    }
+
+  
+
+    /// ë³µì‚¬ë³¸ ìƒì„±
+
+    PoseOptions copyWith({
+
+      int? numPoses,
+
+      double? minDetectionConfidence,
+
+      double? minTrackingConfidence,
+
+    }) {
+
+      return PoseOptions(
+
+        numPoses: numPoses ?? this.numPoses,
+
+        minDetectionConfidence:
+
+            minDetectionConfidence ?? this.minDetectionConfidence,
+
+        minTrackingConfidence:
+
+            minTrackingConfidence ?? this.minTrackingConfidence,
+
+      );
+
+    }
+
+  
+
+    @override
+
+    String toString() {
+
+      return 'PoseOptions(numPoses: $numPoses, minDetectionConfidence: $minDetectionConfidence, '
+
+          'minTrackingConfidence: $minTrackingConfidence)';
+
+    }
+
+  }
+
+  
+
+result.dart
+  import 'landmark.dart';
+
+  
+
+  /// ì „ì²´ ë¶„ì„ ê²°ê³¼
+
+  class LandmarkerResult {
+
+    /// ì–¼êµ´ ë¶„ì„ ê²°ê³¼ (face=trueì¼ ë•Œ)
+
+    final FaceResult? face;
+
+  
+
+    /// ìžì„¸ ë¶„ì„ ê²°ê³¼ (pose=trueì¼ ë•Œ)
+
+    final PoseResult? pose;
+
+  
+
+    /// ë¶„ì„ ì‹œì  íƒ€ìž„ìŠ¤íƒ¬í”„ (ë°€ë¦¬ì´ˆ)
+
+    final int timestampMs;
+
+  
+
+    const LandmarkerResult({
+
+      this.face,
+
+      this.pose,
+
+      required this.timestampMs,
+
+    });
+
+  
+
+    /// Mapì—ì„œ LandmarkerResult ìƒì„±
+
+    factory LandmarkerResult.fromMap(Map<String, dynamic> map) {
+
+      return LandmarkerResult(
+
+        face: map['face'] != null
+
+            ? FaceResult.fromMap(_convertMap(map['face']))
+
+            : null,
+
+        pose: map['pose'] != null
+
+            ? PoseResult.fromMap(_convertMap(map['pose']))
+
+            : null,
+
+        timestampMs: (map['timestampMs'] as num).toInt(),
+
+      );
+
+    }
+
+  
+
+    /// ê²°ê³¼ê°€ ë¹„ì–´ìžˆëŠ”ì§€ í™•ì¸
+
+    bool get isEmpty => face == null && pose == null;
+
+  
+
+    /// ê²°ê³¼ê°€ ìžˆëŠ”ì§€ í™•ì¸
+
+    bool get isNotEmpty => !isEmpty;
+
+  
+
+    /// ì–¼êµ´ì´ ê°ì§€ë˜ì—ˆëŠ”ì§€ í™•ì¸
+
+    bool get hasFace => face != null && face!.landmarks.isNotEmpty;
+
+  
+
+    /// í¬ì¦ˆê°€ ê°ì§€ë˜ì—ˆëŠ”ì§€ í™•ì¸
+
+    bool get hasPose => pose != null && pose!.landmarks.isNotEmpty;
+
+  
+
+    @override
+
+    String toString() {
+
+      return 'LandmarkerResult(face: ${face != null ? 'detected' : 'null'}, '
+
+          'pose: ${pose != null ? 'detected' : 'null'}, timestampMs: $timestampMs)';
+
+    }
+
+  }
+
+  
+
+  /// ì–¼êµ´ ë¶„ì„ ê²°ê³¼
+
+  class FaceResult {
+
+    /// 478ê°œ ì–¼êµ´ ëžœë“œë§ˆí¬ ì¢Œí‘œ
+
+    final List<Landmark> landmarks;
+
+  
+
+    /// 52ê°œ ë¸”ë Œë“œì‰ìž… (í‘œì • ê³„ìˆ˜)
+
+    /// key: ë¸”ë Œë“œì‰ìž… ì´ë¦„, value: 0.0~1.0 ê°•ë„
+
+    final Map<String, double> blendshapes;
+
+  
+
+    /// ì–¼êµ´ ë³€í™˜ í–‰ë ¬ (4x4, ì„ íƒì )
+
+    final List<double>? transformationMatrix;
+
+  
+
+    const FaceResult({
+
+      required this.landmarks,
+
+      required this.blendshapes,
+
+      this.transformationMatrix,
+
+    });
+
+  
+
+    /// Mapì—ì„œ FaceResult ìƒì„±
+
+    factory FaceResult.fromMap(Map<String, dynamic> map) {
+
+      // landmarks íŒŒì‹±
+
+      final landmarksData = map['landmarks'] as List<dynamic>? ?? [];
+
+      final landmarks = landmarksData
+
+          .map((e) => Landmark.fromMap(_convertMap(e)))
+
+          .toList();
+
+  
+
+      // blendshapes íŒŒì‹±
+
+      final blendshapesRaw = map['blendshapes'];
+
+      final blendshapes = <String, double>{};
+
+      if (blendshapesRaw != null) {
+
+        final blendshapesData = _convertMap(blendshapesRaw);
+
+        blendshapesData.forEach((key, value) {
+
+          blendshapes[key.toString()] = (value as num).toDouble();
+
+        });
+
+      }
+
+  
+
+      // transformationMatrix íŒŒì‹±
+
+      List<double>? transformationMatrix;
+
+      if (map['transformationMatrix'] != null) {
+
+        final matrixData = map['transformationMatrix'] as List<dynamic>;
+
+        transformationMatrix =
+
+            matrixData.map((e) => (e as num).toDouble()).toList();
+
+      }
+
+  
+
+      return FaceResult(
+
+        landmarks: landmarks,
+
+        blendshapes: blendshapes,
+
+        transformationMatrix: transformationMatrix,
+
+      );
+
+    }
+
+  
+
+    /// íŠ¹ì • ì¸ë±ìŠ¤ì˜ ëžœë“œë§ˆí¬ ê°€ì ¸ì˜¤ê¸°
+
+    Landmark? getLandmark(int index) {
+
+      if (index < 0 || index >= landmarks.length) return null;
+
+      return landmarks[index];
+
+    }
+
+  
+
+    /// íŠ¹ì • ë¸”ë Œë“œì‰ìž… ê°’ ê°€ì ¸ì˜¤ê¸°
+
+    double getBlendshape(String name) {
+
+      return blendshapes[name] ?? 0.0;
+
+    }
+
+  
+
+    // === íŽ¸ì˜ ì†ì„±ë“¤ (í‘œì • ë¶„ì„) ===
+
+  
+
+    /// ë¯¸ì†Œ ì ìˆ˜ (0.0~1.0)
+
+    double get smileScore {
+
+      final mouthSmileLeft = blendshapes['mouthSmileLeft'] ?? 0.0;
+
+      final mouthSmileRight = blendshapes['mouthSmileRight'] ?? 0.0;
+
+      return (mouthSmileLeft + mouthSmileRight) / 2.0;
+
+    }
+
+  
+
+    /// ëˆˆì¹ ì˜¬ë¦¼ ì ìˆ˜ (0.0~1.0)
+
+    double get browRaiseScore {
+
+      final browInnerUp = blendshapes['browInnerUp'] ?? 0.0;
+
+      final browOuterUpLeft = blendshapes['browOuterUpLeft'] ?? 0.0;
+
+      final browOuterUpRight = blendshapes['browOuterUpRight'] ?? 0.0;
+
+      return (browInnerUp + browOuterUpLeft + browOuterUpRight) / 3.0;
+
+    }
+
+  
+
+    /// ëˆˆ ê¹œë¹¡ìž„ (ì™¼ìª½)
+
+    double get eyeBlinkLeft => blendshapes['eyeBlinkLeft'] ?? 0.0;
+
+  
+
+    /// ëˆˆ ê¹œë¹¡ìž„ (ì˜¤ë¥¸ìª½)
+
+    double get eyeBlinkRight => blendshapes['eyeBlinkRight'] ?? 0.0;
+
+  
+
+    /// ëˆˆ ì‹œì„  ë¶„ì„ - ì•„ì´ì»¨íƒ ì ìˆ˜ (ê°„ë‹¨ ë²„ì „)
+
+    double get eyeContactScore {
+
+      final eyeLookOutLeft = blendshapes['eyeLookOutLeft'] ?? 0.0;
+
+      final eyeLookOutRight = blendshapes['eyeLookOutRight'] ?? 0.0;
+
+      final eyeLookInLeft = blendshapes['eyeLookInLeft'] ?? 0.0;
+
+      final eyeLookInRight = blendshapes['eyeLookInRight'] ?? 0.0;
+
+      final eyeLookUpLeft = blendshapes['eyeLookUpLeft'] ?? 0.0;
+
+      final eyeLookUpRight = blendshapes['eyeLookUpRight'] ?? 0.0;
+
+      final eyeLookDownLeft = blendshapes['eyeLookDownLeft'] ?? 0.0;
+
+      final eyeLookDownRight = blendshapes['eyeLookDownRight'] ?? 0.0;
+
+  
+
+      // ì‹œì„ ì´ ì •ë©´ì„ í–¥í• ìˆ˜ë¡ ì ìˆ˜ê°€ ë†’ìŒ
+
+      final avgLookAway = (eyeLookOutLeft +
+
+              eyeLookOutRight +
+
+              eyeLookInLeft +
+
+              eyeLookInRight +
+
+              eyeLookUpLeft +
+
+              eyeLookUpRight +
+
+              eyeLookDownLeft +
+
+              eyeLookDownRight) /
+
+          8.0;
+
+  
+
+      return 1.0 - avgLookAway.clamp(0.0, 1.0);
+
+    }
+
+  
+
+    @override
+
+    String toString() {
+
+      return 'FaceResult(landmarks: ${landmarks.length}, '
+
+          'blendshapes: ${blendshapes.length}, '
+
+          'hasTransformationMatrix: ${transformationMatrix != null})';
+
+    }
+
+  }
+
+  
+
+  /// ìžì„¸ ë¶„ì„ ê²°ê³¼
+
+  class PoseResult {
+
+    /// 33ê°œ ëª¸ ëžœë“œë§ˆí¬ ì¢Œí‘œ
+
+    final List<Landmark> landmarks;
+
+  
+
+    /// 33ê°œ ì›”ë“œ ì¢Œí‘œ (ë¯¸í„° ë‹¨ìœ„)
+
+    final List<Landmark>? worldLandmarks;
+
+  
+
+    final List<Landmark> segmentationMasks;
+
+  
+
+  
+
+    const PoseResult({
+
+      required this.landmarks,
+
+      this.worldLandmarks,
+
+      this.segmentationMasks = const [],
+
+    });
+
+  
+
+    /// Mapì—ì„œ PoseResult ìƒì„±
+
+    factory PoseResult.fromMap(Map<String, dynamic> map) {
+
+      // landmarks íŒŒì‹±
+
+      final landmarksData = map['landmarks'] as List<dynamic>? ?? [];
+
+      final landmarks = landmarksData
+
+          .map((e) => Landmark.fromMap(_convertMap(e)))
+
+          .toList();
+
+  
+
+      // worldLandmarks íŒŒì‹±
+
+      List<Landmark>? worldLandmarks;
+
+      if (map['worldLandmarks'] != null) {
+
+        final worldData = map['worldLandmarks'] as List<dynamic>;
+
+        worldLandmarks = worldData
+
+            .map((e) => Landmark.fromMap(_convertMap(e)))
+
+            .toList();
+
+      }
+
+  
+
+      return PoseResult(
+
+        landmarks: landmarks,
+
+        worldLandmarks: worldLandmarks,
+
+      );
+
+    }
+
+  
+
+    /// íŠ¹ì • ì¸ë±ìŠ¤ì˜ ëžœë“œë§ˆí¬ ê°€ì ¸ì˜¤ê¸°
+
+    Landmark? getLandmark(int index) {
+
+      if (index < 0 || index >= landmarks.length) return null;
+
+      return landmarks[index];
+
+    }
+
+  
+
+    /// íŠ¹ì • ì¸ë±ìŠ¤ì˜ ì›”ë“œ ëžœë“œë§ˆí¬ ê°€ì ¸ì˜¤ê¸°
+
+    Landmark? getWorldLandmark(int index) {
+
+      if (worldLandmarks == null ||
+
+          index < 0 ||
+
+          index >= worldLandmarks!.length) {
+
+        return null;
+
+      }
+
+      return worldLandmarks![index];
+
+    }
+
+  
+
+    @override
+
+    String toString() {
+
+      return 'PoseResult(landmarks: ${landmarks.length}, '
+
+          'worldLandmarks: ${worldLandmarks?.length ?? 0})';
+
+    }
+
+  }
+
+  
+
+  /// ìž¬ê·€ì ìœ¼ë¡œ Mapì„ `Map<String, dynamic>`ìœ¼ë¡œ ë³€í™˜
+
+  Map<String, dynamic> _convertMap(dynamic data) {
+
+    if (data is Map<String, dynamic>) {
+
+      return data;
+
+    }
+
+    if (data is Map) {
+
+      return Map<String, dynamic>.from(data);
+
+    }
+
+    throw ArgumentError('Expected Map but got ${data.runtimeType}');
+
+  }
+
+  
+
+face_blendshape.dart
+  /// 52ê°œ ARKit í˜¸í™˜ ë¸”ë Œë“œì‰ìž… ì´ë¦„
+
+  class FaceBlendshape {
+
+    FaceBlendshape._();
+
+  
+
+    // ===== ëˆˆì¹ (Brow) - 5ê°œ =====
+
+    /// ì™¼ìª½ ëˆˆì¹ ë‚´ë¦¼
+
+    static const String browDownLeft = 'browDownLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆì¹ ë‚´ë¦¼
+
+    static const String browDownRight = 'browDownRight';
+
+  
+
+    /// ëˆˆì¹ ì•ˆìª½ ì˜¬ë¦¼ (ì°¡ê·¸ë¦¼)
+
+    static const String browInnerUp = 'browInnerUp';
+
+  
+
+    /// ì™¼ìª½ ëˆˆì¹ ë°”ê¹¥ìª½ ì˜¬ë¦¼
+
+    static const String browOuterUpLeft = 'browOuterUpLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆì¹ ë°”ê¹¥ìª½ ì˜¬ë¦¼
+
+    static const String browOuterUpRight = 'browOuterUpRight';
+
+  
+
+    // ===== ë³¼ (Cheek) - 3ê°œ =====
+
+    /// ë³¼ ë¶€í’€ë¦¼
+
+    static const String cheekPuff = 'cheekPuff';
+
+  
+
+    /// ì™¼ìª½ ë³¼ ì°¡ê·¸ë¦¼ (ë¯¸ì†Œ ì‹œ)
+
+    static const String cheekSquintLeft = 'cheekSquintLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ë³¼ ì°¡ê·¸ë¦¼ (ë¯¸ì†Œ ì‹œ)
+
+    static const String cheekSquintRight = 'cheekSquintRight';
+
+  
+
+    // ===== ëˆˆ (Eye) - 14ê°œ =====
+
+    /// ì™¼ìª½ ëˆˆ ê¹œë¹¡ìž„
+
+    static const String eyeBlinkLeft = 'eyeBlinkLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ê¹œë¹¡ìž„
+
+    static const String eyeBlinkRight = 'eyeBlinkRight';
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ì•„ëž˜ ë³´ê¸°
+
+    static const String eyeLookDownLeft = 'eyeLookDownLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ì•„ëž˜ ë³´ê¸°
+
+    static const String eyeLookDownRight = 'eyeLookDownRight';
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ì•ˆìª½(ì½” ë°©í–¥) ë³´ê¸°
+
+    static const String eyeLookInLeft = 'eyeLookInLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ì•ˆìª½(ì½” ë°©í–¥) ë³´ê¸°
+
+    static const String eyeLookInRight = 'eyeLookInRight';
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ë°”ê¹¥ìª½ ë³´ê¸°
+
+    static const String eyeLookOutLeft = 'eyeLookOutLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ë°”ê¹¥ìª½ ë³´ê¸°
+
+    static const String eyeLookOutRight = 'eyeLookOutRight';
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ìœ„ ë³´ê¸°
+
+    static const String eyeLookUpLeft = 'eyeLookUpLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ìœ„ ë³´ê¸°
+
+    static const String eyeLookUpRight = 'eyeLookUpRight';
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ì°¡ê·¸ë¦¼
+
+    static const String eyeSquintLeft = 'eyeSquintLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ì°¡ê·¸ë¦¼
+
+    static const String eyeSquintRight = 'eyeSquintRight';
+
+  
+
+    /// ì™¼ìª½ ëˆˆ í¬ê²Œ ëœ¸
+
+    static const String eyeWideLeft = 'eyeWideLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ í¬ê²Œ ëœ¸
+
+    static const String eyeWideRight = 'eyeWideRight';
+
+  
+
+    // ===== í„± (Jaw) - 4ê°œ =====
+
+    /// í„± ì•žìœ¼ë¡œ
+
+    static const String jawForward = 'jawForward';
+
+  
+
+    /// í„± ì™¼ìª½ìœ¼ë¡œ
+
+    static const String jawLeft = 'jawLeft';
+
+  
+
+    /// ìž… ë²Œë¦¼ (í„± ì—´ë¦¼)
+
+    static const String jawOpen = 'jawOpen';
+
+  
+
+    /// í„± ì˜¤ë¥¸ìª½ìœ¼ë¡œ
+
+    static const String jawRight = 'jawRight';
+
+  
+
+    // ===== ìž… (Mouth) - 23ê°œ =====
+
+    /// ìž… ë‹¤ë¬¼ê¸°
+
+    static const String mouthClose = 'mouthClose';
+
+  
+
+    /// ì™¼ìª½ ìž…ê¼¬ë¦¬ ë³´ì¡°ê°œ
+
+    static const String mouthDimpleLeft = 'mouthDimpleLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ìž…ê¼¬ë¦¬ ë³´ì¡°ê°œ
+
+    static const String mouthDimpleRight = 'mouthDimpleRight';
+
+  
+
+    /// ì™¼ìª½ ìž…ê¼¬ë¦¬ ë‚´ë¦¼ (ì°¡ê·¸ë¦¼)
+
+    static const String mouthFrownLeft = 'mouthFrownLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ìž…ê¼¬ë¦¬ ë‚´ë¦¼ (ì°¡ê·¸ë¦¼)
+
+    static const String mouthFrownRight = 'mouthFrownRight';
+
+  
+
+    /// ìž… ê¹”ë•Œê¸° ëª¨ì–‘ (ì˜¤ ë°œìŒ)
+
+    static const String mouthFunnel = 'mouthFunnel';
+
+  
+
+    /// ìž… ì™¼ìª½ìœ¼ë¡œ
+
+    static const String mouthLeft = 'mouthLeft';
+
+  
+
+    /// ì™¼ìª½ ì•„ëž«ìž…ìˆ  ë‚´ë¦¼
+
+    static const String mouthLowerDownLeft = 'mouthLowerDownLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ì•„ëž«ìž…ìˆ  ë‚´ë¦¼
+
+    static const String mouthLowerDownRight = 'mouthLowerDownRight';
+
+  
+
+    /// ì™¼ìª½ ìž…ìˆ  ëˆ„ë¥´ê¸°
+
+    static const String mouthPressLeft = 'mouthPressLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ìž…ìˆ  ëˆ„ë¥´ê¸°
+
+    static const String mouthPressRight = 'mouthPressRight';
+
+  
+
+    /// ìž…ìˆ  ì˜¤ë¯€ë¦¬ê¸° (ë½€ë½€)
+
+    static const String mouthPucker = 'mouthPucker';
+
+  
+
+    /// ìž… ì˜¤ë¥¸ìª½ìœ¼ë¡œ
+
+    static const String mouthRight = 'mouthRight';
+
+  
+
+    /// ì•„ëž«ìž…ìˆ  ì•ˆìœ¼ë¡œ ë§ê¸°
+
+    static const String mouthRollLower = 'mouthRollLower';
+
+  
+
+    /// ìœ—ìž…ìˆ  ì•ˆìœ¼ë¡œ ë§ê¸°
+
+    static const String mouthRollUpper = 'mouthRollUpper';
+
+  
+
+    /// ì•„ëž«ìž…ìˆ  ìœ¼ì“±
+
+    static const String mouthShrugLower = 'mouthShrugLower';
+
+  
+
+    /// ìœ—ìž…ìˆ  ìœ¼ì“±
+
+    static const String mouthShrugUpper = 'mouthShrugUpper';
+
+  
+
+    /// ì™¼ìª½ ë¯¸ì†Œ
+
+    static const String mouthSmileLeft = 'mouthSmileLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ë¯¸ì†Œ
+
+    static const String mouthSmileRight = 'mouthSmileRight';
+
+  
+
+    /// ì™¼ìª½ ìž… ëŠ˜ì´ê¸°
+
+    static const String mouthStretchLeft = 'mouthStretchLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ìž… ëŠ˜ì´ê¸°
+
+    static const String mouthStretchRight = 'mouthStretchRight';
+
+  
+
+    /// ì™¼ìª½ ìœ—ìž…ìˆ  ì˜¬ë¦¼
+
+    static const String mouthUpperUpLeft = 'mouthUpperUpLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ìœ—ìž…ìˆ  ì˜¬ë¦¼
+
+    static const String mouthUpperUpRight = 'mouthUpperUpRight';
+
+  
+
+    // ===== ì½” (Nose) - 2ê°œ =====
+
+    /// ì™¼ìª½ ì½” ì°¡ê·¸ë¦¼
+
+    static const String noseSneerLeft = 'noseSneerLeft';
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ì½” ì°¡ê·¸ë¦¼
+
+    static const String noseSneerRight = 'noseSneerRight';
+
+  
+
+    // ===== ê¸°íƒ€ - 1ê°œ =====
+
+    /// ì¤‘ë¦½ (í•­ìƒ 0)
+
+    static const String neutral = '_neutral';
+
+  
+
+    /// ì „ì²´ ë¸”ë Œë“œì‰ìž… ëª©ë¡ (52ê°œ)
+
+    static const List<String> all = [
+
+      // Brow (5)
+
+      browDownLeft,
+
+      browDownRight,
+
+      browInnerUp,
+
+      browOuterUpLeft,
+
+      browOuterUpRight,
+
+      // Cheek (3)
+
+      cheekPuff,
+
+      cheekSquintLeft,
+
+      cheekSquintRight,
+
+      // Eye (14)
+
+      eyeBlinkLeft,
+
+      eyeBlinkRight,
+
+      eyeLookDownLeft,
+
+      eyeLookDownRight,
+
+      eyeLookInLeft,
+
+      eyeLookInRight,
+
+      eyeLookOutLeft,
+
+      eyeLookOutRight,
+
+      eyeLookUpLeft,
+
+      eyeLookUpRight,
+
+      eyeSquintLeft,
+
+      eyeSquintRight,
+
+      eyeWideLeft,
+
+      eyeWideRight,
+
+      // Jaw (4)
+
+      jawForward,
+
+      jawLeft,
+
+      jawOpen,
+
+      jawRight,
+
+      // Mouth (23)
+
+      mouthClose,
+
+      mouthDimpleLeft,
+
+      mouthDimpleRight,
+
+      mouthFrownLeft,
+
+      mouthFrownRight,
+
+      mouthFunnel,
+
+      mouthLeft,
+
+      mouthLowerDownLeft,
+
+      mouthLowerDownRight,
+
+      mouthPressLeft,
+
+      mouthPressRight,
+
+      mouthPucker,
+
+      mouthRight,
+
+      mouthRollLower,
+
+      mouthRollUpper,
+
+      mouthShrugLower,
+
+      mouthShrugUpper,
+
+      mouthSmileLeft,
+
+      mouthSmileRight,
+
+      mouthStretchLeft,
+
+      mouthStretchRight,
+
+      mouthUpperUpLeft,
+
+      mouthUpperUpRight,
+
+      // Nose (2)
+
+      noseSneerLeft,
+
+      noseSneerRight,
+
+      // Neutral (1)
+
+      neutral,
+
+    ];
+
+  
+
+    /// ë¸”ë Œë“œì‰ìž… ì´ ê°œìˆ˜
+
+    static const int count = 52;
+
+  
+
+    // ===== ì¹´í…Œê³ ë¦¬ë³„ ê·¸ë£¹ =====
+
+  
+
+    /// ëˆˆì¹ ê´€ë ¨ ë¸”ë Œë“œì‰ìž…
+
+    static const List<String> browGroup = [
+
+      browDownLeft,
+
+      browDownRight,
+
+      browInnerUp,
+
+      browOuterUpLeft,
+
+      browOuterUpRight,
+
+    ];
+
+  
+
+    /// ëˆˆ ê´€ë ¨ ë¸”ë Œë“œì‰ìž…
+
+    static const List<String> eyeGroup = [
+
+      eyeBlinkLeft,
+
+      eyeBlinkRight,
+
+      eyeLookDownLeft,
+
+      eyeLookDownRight,
+
+      eyeLookInLeft,
+
+      eyeLookInRight,
+
+      eyeLookOutLeft,
+
+      eyeLookOutRight,
+
+      eyeLookUpLeft,
+
+      eyeLookUpRight,
+
+      eyeSquintLeft,
+
+      eyeSquintRight,
+
+      eyeWideLeft,
+
+      eyeWideRight,
+
+    ];
+
+  
+
+    /// ì‹œì„  ë°©í–¥ ê´€ë ¨ ë¸”ë Œë“œì‰ìž…
+
+    static const List<String> gazeGroup = [
+
+      eyeLookDownLeft,
+
+      eyeLookDownRight,
+
+      eyeLookInLeft,
+
+      eyeLookInRight,
+
+      eyeLookOutLeft,
+
+      eyeLookOutRight,
+
+      eyeLookUpLeft,
+
+      eyeLookUpRight,
+
+    ];
+
+  
+
+    /// ìž… ê´€ë ¨ ë¸”ë Œë“œì‰ìž…
+
+    static const List<String> mouthGroup = [
+
+      mouthClose,
+
+      mouthDimpleLeft,
+
+      mouthDimpleRight,
+
+      mouthFrownLeft,
+
+      mouthFrownRight,
+
+      mouthFunnel,
+
+      mouthLeft,
+
+      mouthLowerDownLeft,
+
+      mouthLowerDownRight,
+
+      mouthPressLeft,
+
+      mouthPressRight,
+
+      mouthPucker,
+
+      mouthRight,
+
+      mouthRollLower,
+
+      mouthRollUpper,
+
+      mouthShrugLower,
+
+      mouthShrugUpper,
+
+      mouthSmileLeft,
+
+      mouthSmileRight,
+
+      mouthStretchLeft,
+
+      mouthStretchRight,
+
+      mouthUpperUpLeft,
+
+      mouthUpperUpRight,
+
+    ];
+
+  
+
+    /// ë¯¸ì†Œ ê´€ë ¨ ë¸”ë Œë“œì‰ìž…
+
+    static const List<String> smileGroup = [
+
+      mouthSmileLeft,
+
+      mouthSmileRight,
+
+      cheekSquintLeft,
+
+      cheekSquintRight,
+
+    ];
+
+  }
+
+  
+
+face_landmark_index.dart
+  /// Face ëžœë“œë§ˆí¬ ê°œìˆ˜ ìƒìˆ˜
+
+  class FaceLandmarkCount {
+
+    FaceLandmarkCount._();
+
+  
+
+    /// ì „ì²´ ëžœë“œë§ˆí¬ ìˆ˜ (ê¸°ë³¸ 468 + í™ì±„ 10)
+
+    static const int total = 478;
+
+  
+
+    /// ê¸°ë³¸ ì–¼êµ´ ë©”ì‰¬ ëžœë“œë§ˆí¬ ìˆ˜
+
+    static const int base = 468;
+
+  
+
+    /// í™ì±„ ëžœë“œë§ˆí¬ ìˆ˜
+
+    static const int iris = 10;
+
+  }
+
+  
+
+  /// ì£¼ìš” Face ëžœë“œë§ˆí¬ ì¸ë±ìŠ¤ (ìžì£¼ ì‚¬ìš©í•˜ëŠ” ê²ƒë§Œ)
+
+  class FaceLandmarkIndex {
+
+    FaceLandmarkIndex._();
+
+  
+
+    // ===== ëˆˆ (Eyes) =====
+
+    /// ì™¼ìª½ ëˆˆ ì•ˆìª½ ëª¨ì„œë¦¬
+
+    static const int leftEyeInner = 133;
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ë°”ê¹¥ìª½ ëª¨ì„œë¦¬
+
+    static const int leftEyeOuter = 33;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ì•ˆìª½ ëª¨ì„œë¦¬
+
+    static const int rightEyeInner = 362;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ë°”ê¹¥ìª½ ëª¨ì„œë¦¬
+
+    static const int rightEyeOuter = 263;
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ì¤‘ì•™ ìœ„
+
+    static const int leftEyeTop = 159;
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ì¤‘ì•™ ì•„ëž˜
+
+    static const int leftEyeBottom = 145;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ì¤‘ì•™ ìœ„
+
+    static const int rightEyeTop = 386;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ì¤‘ì•™ ì•„ëž˜
+
+    static const int rightEyeBottom = 374;
+
+  
+
+    // ===== ëˆˆì¹ (Eyebrows) =====
+
+    /// ì™¼ìª½ ëˆˆì¹ ì•ˆìª½
+
+    static const int leftEyebrowInner = 107;
+
+  
+
+    /// ì™¼ìª½ ëˆˆì¹ ë°”ê¹¥ìª½
+
+    static const int leftEyebrowOuter = 46;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆì¹ ì•ˆìª½
+
+    static const int rightEyebrowInner = 336;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆì¹ ë°”ê¹¥ìª½
+
+    static const int rightEyebrowOuter = 276;
+
+  
+
+    // ===== ì½” (Nose) =====
+
+    /// ì½”ë
+
+    static const int noseTip = 1;
+
+  
+
+    /// ì½” ë‹¤ë¦¬ (ì½§ë“±)
+
+    static const int noseBridge = 6;
+
+  
+
+    /// ì™¼ìª½ ì½§ë³¼
+
+    static const int noseLeftAlar = 129;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ì½§ë³¼
+
+    static const int noseRightAlar = 358;
+
+  
+
+    // ===== ìž… (Mouth) =====
+
+    /// ìœ—ìž…ìˆ  ìœ„ìª½ ì¤‘ì•™
+
+    static const int upperLipTop = 13;
+
+  
+
+    /// ì•„ëž«ìž…ìˆ  ì•„ëž˜ìª½ ì¤‘ì•™
+
+    static const int lowerLipBottom = 14;
+
+  
+
+    /// ìž… ì™¼ìª½ ë
+
+    static const int mouthLeft = 61;
+
+  
+
+    /// ìž… ì˜¤ë¥¸ìª½ ë
+
+    static const int mouthRight = 291;
+
+  
+
+    /// ìœ—ìž…ìˆ  ì•„ëž˜ìª½ ì¤‘ì•™
+
+    static const int upperLipBottom = 0;
+
+  
+
+    /// ì•„ëž«ìž…ìˆ  ìœ„ìª½ ì¤‘ì•™
+
+    static const int lowerLipTop = 17;
+
+  
+
+    // ===== ì–¼êµ´ ìœ¤ê³½ (Face Contour) =====
+
+    /// í„± ë
+
+    static const int chin = 152;
+
+  
+
+    /// ì´ë§ˆ ì¤‘ì•™
+
+    static const int foreheadCenter = 10;
+
+  
+
+    /// ì™¼ìª½ ë³¼
+
+    static const int leftCheek = 234;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ë³¼
+
+    static const int rightCheek = 454;
+
+  
+
+    /// ì™¼ìª½ ê´€ìžë†€ì´
+
+    static const int leftTemple = 127;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ê´€ìžë†€ì´
+
+    static const int rightTemple = 356;
+
+  
+
+    // ===== í™ì±„ (Iris) - 468ë²ˆë¶€í„° =====
+
+    /// ì™¼ìª½ í™ì±„ ì¤‘ì‹¬
+
+    static const int leftIrisCenter = 468;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ í™ì±„ ì¤‘ì‹¬
+
+    static const int rightIrisCenter = 473;
+
+  
+
+    /// ì™¼ìª½ í™ì±„ ìœ„
+
+    static const int leftIrisTop = 469;
+
+  
+
+    /// ì™¼ìª½ í™ì±„ ì•„ëž˜
+
+    static const int leftIrisBottom = 471;
+
+  
+
+    /// ì™¼ìª½ í™ì±„ ì™¼ìª½
+
+    static const int leftIrisLeft = 470;
+
+  
+
+    /// ì™¼ìª½ í™ì±„ ì˜¤ë¥¸ìª½
+
+    static const int leftIrisRight = 472;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ í™ì±„ ìœ„
+
+    static const int rightIrisTop = 474;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ í™ì±„ ì•„ëž˜
+
+    static const int rightIrisBottom = 476;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ í™ì±„ ì™¼ìª½
+
+    static const int rightIrisLeft = 477;
+
+  
+
+    /// ì˜¤ë¥¸ìª½ í™ì±„ ì˜¤ë¥¸ìª½
+
+    static const int rightIrisRight = 475;
+
+  
+
+    // ===== ìœ ìš©í•œ ê·¸ë£¹ =====
+
+  
+
+    /// ì™¼ìª½ ëˆˆ ìœ¤ê³½ ì¸ë±ìŠ¤ë“¤
+
+    static const List<int> leftEyeContour = [
+
+      33,
+
+      7,
+
+      163,
+
+      144,
+
+      145,
+
+      153,
+
+      154,
+
+      155,
+
+      133,
+
+      173,
+
+      157,
+
+      158,
+
+      159,
+
+      160,
+
+      161,
+
+      246,
+
+    ];
+
+  
+
+    /// ì˜¤ë¥¸ìª½ ëˆˆ ìœ¤ê³½ ì¸ë±ìŠ¤ë“¤
+
+    static const List<int> rightEyeContour = [
+
+      362,
+
+      382,
+
+      381,
+
+      380,
+
+      374,
+
+      373,
+
+      390,
+
+      249,
+
+      263,
+
+      466,
+
+      388,
+
+      387,
+
+      386,
+
+      385,
+
+      384,
+
+      398,
+
+    ];
+
+  
+
+    /// ìž…ìˆ  ë°”ê¹¥ ìœ¤ê³½ ì¸ë±ìŠ¤ë“¤
+
+    static const List<int> lipsOuterContour = [
+
+      61,
+
+      146,
+
+      91,
+
+      181,
+
+      84,
+
+      17,
+
+      314,
+
+      405,
+
+      321,
+
+      375,
+
+      291,
+
+      409,
+
+      270,
+
+      269,
+
+      267,
+
+      0,
+
+      37,
+
+      39,
+
+      40,
+
+      185,
+
+    ];
+
+  
+
+    /// ì–¼êµ´ ìœ¤ê³½ ì¸ë±ìŠ¤ë“¤
+
+    static const List<int> faceOval = [
+
+      10,
+
+      338,
+
+      297,
+
+      332,
+
+      284,
+
+      251,
+
+      389,
+
+      356,
+
+      454,
+
+      323,
+
+      361,
+
+      288,
+
+      397,
+
+      365,
+
+      379,
+
+      378,
+
+      400,
+
+      377,
+
+      152,
+
+      148,
+
+      176,
+
+      149,
+
+      150,
+
+      136,
+
+      172,
+
+      58,
+
+      132,
+
+      93,
+
+      234,
+
+      127,
+
+      162,
+
+      21,
+
+      54,
+
+      103,
+
+      67,
+
+      109,
+
+    ];
+
+  }
+
+  
+
+pose_landmark_index.dart
+  /// Pose ëžœë“œë§ˆí¬ ì¸ë±ìŠ¤ (0-32, ì´ 33ê°œ)
+
+  class PoseLandmarkIndex {
+
+    // ì–¼êµ´ (0-10)
+
+    static const int nose = 0;
+
+    static const int leftEyeInner = 1;
+
+    static const int leftEye = 2;
+
+    static const int leftEyeOuter = 3;
+
+    static const int rightEyeInner = 4;
+
+    static const int rightEye = 5;
+
+    static const int rightEyeOuter = 6;
+
+    static const int leftEar = 7;
+
+    static const int rightEar = 8;
+
+    static const int mouthLeft = 9;
+
+    static const int mouthRight = 10;
+
+    
+
+    // ìƒì²´ (11-22)
+
+    static const int leftShoulder = 11;
+
+    static const int rightShoulder = 12;
+
+    static const int leftElbow = 13;
+
+    static const int rightElbow = 14;
+
+    static const int leftWrist = 15;
+
+    static const int rightWrist = 16;
+
+    static const int leftPinky = 17;
+
+    static const int rightPinky = 18;
+
+    static const int leftIndex = 19;
+
+    static const int rightIndex = 20;
+
+    static const int leftThumb = 21;
+
+    static const int rightThumb = 22;
+
+    
+
+    // í•˜ì²´ (23-32)
+
+    static const int leftHip = 23;
+
+    static const int rightHip = 24;
+
+    static const int leftKnee = 25;
+
+    static const int rightKnee = 26;
+
+    static const int leftAnkle = 27;
+
+    static const int rightAnkle = 28;
+
+    static const int leftHeel = 29;
+
+    static const int rightHeel = 30;
+
+    static const int leftFootIndex = 31;
+
+    static const int rightFootIndex = 32;
+
+    
+
+    /// ì´ ëžœë“œë§ˆí¬ ê°œìˆ˜
+
+    static const int count = 33;
+
+    
+
+    /// ëžœë“œë§ˆí¬ ì´ë¦„ ëª©ë¡
+
+    static const List<String> names = [
+
+      'nose',
+
+      'leftEyeInner', 'leftEye', 'leftEyeOuter',
+
+      'rightEyeInner', 'rightEye', 'rightEyeOuter',
+
+      'leftEar', 'rightEar',
+
+      'mouthLeft', 'mouthRight',
+
+      'leftShoulder', 'rightShoulder',
+
+      'leftElbow', 'rightElbow',
+
+      'leftWrist', 'rightWrist',
+
+      'leftPinky', 'rightPinky',
+
+      'leftIndex', 'rightIndex',
+
+      'leftThumb', 'rightThumb',
+
+      'leftHip', 'rightHip',
+
+      'leftKnee', 'rightKnee',
+
+      'leftAnkle', 'rightAnkle',
+
+      'leftHeel', 'rightHeel',
+
+      'leftFootIndex', 'rightFootIndex',
+
+    ];
+
+    
+
+    /// ì¸ë±ìŠ¤ë¡œ ì´ë¦„ ê°€ì ¸ì˜¤ê¸°
+
+    static String getName(int index) {
+
+      if (index < 0 || index >= names.length) return 'unknown';
+
+      return names[index];
+
+    }
+
+  }
+
+  
+
+face_result_helper.dart
+  import '../result.dart';
+
+  import '../constants/face_blendshape.dart';
+
+  
+
+  /// FaceResult íŽ¸ì˜ í™•ìž¥
+
+  extension FaceResultHelper on FaceResult {
+
+    /// ì‹œì„  ì ìˆ˜ (0.0~1.0, ì¹´ë©”ë¼ ì •ë©´ ì‘ì‹œì¼ìˆ˜ë¡ ë†’ìŒ)
+
+    ///
+
+    /// ëˆˆì´ ìƒí•˜ì¢Œìš°ë¡œ ë²—ì–´ë‚ ìˆ˜ë¡ ì ìˆ˜ê°€ ë‚®ì•„ì§
+
+    double get eyeContactScore {
+
+      final lookInL = blendshapes[FaceBlendshape.eyeLookInLeft] ?? 0;
+
+      final lookInR = blendshapes[FaceBlendshape.eyeLookInRight] ?? 0;
+
+      final lookOutL = blendshapes[FaceBlendshape.eyeLookOutLeft] ?? 0;
+
+      final lookOutR = blendshapes[FaceBlendshape.eyeLookOutRight] ?? 0;
+
+      final lookUpL = blendshapes[FaceBlendshape.eyeLookUpLeft] ?? 0;
+
+      final lookUpR = blendshapes[FaceBlendshape.eyeLookUpRight] ?? 0;
+
+      final lookDownL = blendshapes[FaceBlendshape.eyeLookDownLeft] ?? 0;
+
+      final lookDownR = blendshapes[FaceBlendshape.eyeLookDownRight] ?? 0;
+
+  
+
+      final avgDeviation = (lookInL +
+
+              lookInR +
+
+              lookOutL +
+
+              lookOutR +
+
+              lookUpL +
+
+              lookUpR +
+
+              lookDownL +
+
+              lookDownR) /
+
+          8;
+
+      return (1.0 - avgDeviation).clamp(0.0, 1.0);
+
+    }
+
+  
+
+    /// ë¯¸ì†Œ ì ìˆ˜ (0.0~1.0)
+
+    ///
+
+    /// ì–‘ìª½ ìž…ê¼¬ë¦¬ ì˜¬ë¼ê° ì •ë„ì˜ í‰ê· 
+
+    double get smileScore {
+
+      final smileL = blendshapes[FaceBlendshape.mouthSmileLeft] ?? 0;
+
+      final smileR = blendshapes[FaceBlendshape.mouthSmileRight] ?? 0;
+
+      return ((smileL + smileR) / 2).clamp(0.0, 1.0);
+
+    }
+
+  
+
+    /// ê¸´ìž¥ë„ ì ìˆ˜ (0.0~1.0, ëˆˆ ì°¡ê·¸ë¦¼ + ëˆˆì¹ ë‚´ë¦¼)
+
+    ///
+
+    /// ë†’ì„ìˆ˜ë¡ ê¸´ìž¥/ë¶ˆíŽ¸í•¨ í‘œí˜„
+
+    double get tensionScore {
+
+      final squintL = blendshapes[FaceBlendshape.eyeSquintLeft] ?? 0;
+
+      final squintR = blendshapes[FaceBlendshape.eyeSquintRight] ?? 0;
+
+      final browDownL = blendshapes[FaceBlendshape.browDownLeft] ?? 0;
+
+      final browDownR = blendshapes[FaceBlendshape.browDownRight] ?? 0;
+
+      return ((squintL + squintR + browDownL + browDownR) / 4).clamp(0.0, 1.0);
+
+    }
+
+  
+
+    /// ëˆˆ ê¹œë¹¡ìž„ ê°ì§€
+
+    ///
+
+    /// í•œìª½ ëˆˆì´ë¼ë„ 50% ì´ìƒ ê°ê¸°ë©´ true
+
+    bool get isBlinking {
+
+      final blinkL = blendshapes[FaceBlendshape.eyeBlinkLeft] ?? 0;
+
+      final blinkR = blendshapes[FaceBlendshape.eyeBlinkRight] ?? 0;
+
+      return blinkL > 0.5 || blinkR > 0.5;
+
+    }
+
+  
+
+    /// ì–‘ìª½ ëˆˆ ëª¨ë‘ ê¹œë¹¡ìž„ ê°ì§€
+
+    bool get isBothEyesBlinking {
+
+      final blinkL = blendshapes[FaceBlendshape.eyeBlinkLeft] ?? 0;
+
+      final blinkR = blendshapes[FaceBlendshape.eyeBlinkRight] ?? 0;
+
+      return blinkL > 0.5 && blinkR > 0.5;
+
+    }
+
+  
+
+    /// ìž… ë²Œë¦¼ ì •ë„ (0.0~1.0)
+
+    double get mouthOpenness {
+
+      return blendshapes[FaceBlendshape.jawOpen] ?? 0;
+
+    }
+
+  
+
+    /// ë§í•˜ê³  ìžˆëŠ”ì§€ ê°ì§€ (ìž…ì´ ì ë‹¹ížˆ ì—´ë ¤ìžˆìŒ)
+
+    ///
+
+    /// ìž…ì´ 15%~80% ì—´ë ¤ìžˆìœ¼ë©´ ë§í•˜ëŠ” ì¤‘ìœ¼ë¡œ íŒë‹¨
+
+    bool get isSpeaking {
+
+      final openness = mouthOpenness;
+
+      return openness > 0.15 && openness < 0.8;
+
+    }
+
+  
+
+    /// ë†€ëžŒ í‘œì • ê°ì§€
+
+    ///
+
+    /// ëˆˆì´ í¬ê²Œ ë– ì§€ê³  ëˆˆì¹ì´ ì˜¬ë¼ê°
+
+    bool get isSurprised {
+
+      final eyeWideL = blendshapes[FaceBlendshape.eyeWideLeft] ?? 0;
+
+      final eyeWideR = blendshapes[FaceBlendshape.eyeWideRight] ?? 0;
+
+      final browInnerUp = blendshapes[FaceBlendshape.browInnerUp] ?? 0;
+
+      return (eyeWideL > 0.3 || eyeWideR > 0.3) && browInnerUp > 0.3;
+
+    }
+
+  
+
+    /// ì°¡ê·¸ë¦¼ í‘œì • ê°ì§€
+
+    ///
+
+    /// ìž…ê¼¬ë¦¬ê°€ ë‚´ë ¤ê°€ê³  ëˆˆì¹ì´ ì°Œí‘¸ë ¤ì§
+
+    bool get isFrowning {
+
+      final frownL = blendshapes[FaceBlendshape.mouthFrownLeft] ?? 0;
+
+      final frownR = blendshapes[FaceBlendshape.mouthFrownRight] ?? 0;
+
+      final browDownL = blendshapes[FaceBlendshape.browDownLeft] ?? 0;
+
+      final browDownR = blendshapes[FaceBlendshape.browDownRight] ?? 0;
+
+      return (frownL > 0.3 || frownR > 0.3) && (browDownL > 0.3 || browDownR > 0.3);
+
+    }
+
+  
+
+    /// ìž…ìˆ  ì˜¤ë¯€ë¦¼ ê°ì§€ (ê¸´ìž¥/ì§‘ì¤‘)
+
+    bool get isLipsPursed {
+
+      final pucker = blendshapes[FaceBlendshape.mouthPucker] ?? 0;
+
+      final funnel = blendshapes[FaceBlendshape.mouthFunnel] ?? 0;
+
+      return pucker > 0.3 || funnel > 0.3;
+
+    }
+
+  
+
+    /// ìˆ˜í‰ ì‹œì„  ë°©í–¥ (-1.0: ì™„ì „ ì™¼ìª½, 0.0: ì •ë©´, 1.0: ì™„ì „ ì˜¤ë¥¸ìª½)
+
+    ///
+
+    /// ìŒìˆ˜: ì™¼ìª½ ë³´ê¸°, ì–‘ìˆ˜: ì˜¤ë¥¸ìª½ ë³´ê¸°
+
+    double get horizontalGazeDirection {
+
+      // ì™¼ìª½ ëˆˆì˜ ì‹œì„ 
+
+      final leftEyeOut = blendshapes[FaceBlendshape.eyeLookOutLeft] ?? 0;
+
+      final leftEyeIn = blendshapes[FaceBlendshape.eyeLookInLeft] ?? 0;
+
+  
+
+      // ì˜¤ë¥¸ìª½ ëˆˆì˜ ì‹œì„ 
+
+      final rightEyeOut = blendshapes[FaceBlendshape.eyeLookOutRight] ?? 0;
+
+      final rightEyeIn = blendshapes[FaceBlendshape.eyeLookInRight] ?? 0;
+
+  
+
+      // ì™¼ìª½ ë³´ê¸°: ì™¼ìª½ ëˆˆ Out + ì˜¤ë¥¸ìª½ ëˆˆ In
+
+      // ì˜¤ë¥¸ìª½ ë³´ê¸°: ì™¼ìª½ ëˆˆ In + ì˜¤ë¥¸ìª½ ëˆˆ Out
+
+      final lookLeft = (leftEyeOut + rightEyeIn) / 2;
+
+      final lookRight = (leftEyeIn + rightEyeOut) / 2;
+
+  
+
+      return (lookRight - lookLeft).clamp(-1.0, 1.0);
+
+    }
+
+  
+
+    /// ìˆ˜ì§ ì‹œì„  ë°©í–¥ (-1.0: ì™„ì „ ìœ„, 0.0: ì •ë©´, 1.0: ì™„ì „ ì•„ëž˜)
+
+    ///
+
+    /// ìŒìˆ˜: ìœ„ ë³´ê¸°, ì–‘ìˆ˜: ì•„ëž˜ ë³´ê¸°
+
+    double get verticalGazeDirection {
+
+      final lookUpL = blendshapes[FaceBlendshape.eyeLookUpLeft] ?? 0;
+
+      final lookUpR = blendshapes[FaceBlendshape.eyeLookUpRight] ?? 0;
+
+      final lookDownL = blendshapes[FaceBlendshape.eyeLookDownLeft] ?? 0;
+
+      final lookDownR = blendshapes[FaceBlendshape.eyeLookDownRight] ?? 0;
+
+  
+
+      final lookUp = (lookUpL + lookUpR) / 2;
+
+      final lookDown = (lookDownL + lookDownR) / 2;
+
+  
+
+      return (lookDown - lookUp).clamp(-1.0, 1.0);
+
+    }
+
+  
+
+    /// í‘œì • ìžì—°ìŠ¤ëŸ¬ì›€ ì ìˆ˜ (0.0~1.0)
+
+    ///
+
+    /// ê·¹ë‹¨ì ì¸ í‘œì • ì—†ì´ ìžì—°ìŠ¤ëŸ¬ìš´ ìƒíƒœì¼ìˆ˜ë¡ ë†’ìŒ
+
+    double get naturalExpressionScore {
+
+      // ê·¹ë‹¨ì ì¸ í‘œì •ë“¤ì˜ í‰ê· 
+
+      final extremes = [
+
+        blendshapes[FaceBlendshape.eyeWideLeft] ?? 0,
+
+        blendshapes[FaceBlendshape.eyeWideRight] ?? 0,
+
+        blendshapes[FaceBlendshape.mouthFrownLeft] ?? 0,
+
+        blendshapes[FaceBlendshape.mouthFrownRight] ?? 0,
+
+        blendshapes[FaceBlendshape.browInnerUp] ?? 0,
+
+        blendshapes[FaceBlendshape.jawOpen] ?? 0,
+
+      ];
+
+  
+
+      final avgExtreme = extremes.reduce((a, b) => a + b) / extremes.length;
+
+      return (1.0 - avgExtreme).clamp(0.0, 1.0);
+
+    }
+
+  
+
+    /// ì¢Œìš° ëŒ€ì¹­ ì ìˆ˜ (0.0~1.0, ëŒ€ì¹­ì¼ìˆ˜ë¡ ë†’ìŒ)
+
+    ///
+
+    /// ì–¼êµ´ í‘œì •ì˜ ì¢Œìš° ê· í˜• ì¸¡ì •
+
+    double get symmetryScore {
+
+      final pairs = [
+
+        [FaceBlendshape.eyeBlinkLeft, FaceBlendshape.eyeBlinkRight],
+
+        [FaceBlendshape.eyeSquintLeft, FaceBlendshape.eyeSquintRight],
+
+        [FaceBlendshape.browDownLeft, FaceBlendshape.browDownRight],
+
+        [FaceBlendshape.mouthSmileLeft, FaceBlendshape.mouthSmileRight],
+
+        [FaceBlendshape.cheekSquintLeft, FaceBlendshape.cheekSquintRight],
+
+      ];
+
+  
+
+      double totalDiff = 0;
+
+      for (final pair in pairs) {
+
+        final left = blendshapes[pair[0]] ?? 0;
+
+        final right = blendshapes[pair[1]] ?? 0;
+
+        totalDiff += (left - right).abs();
+
+      }
+
+  
+
+      final avgDiff = totalDiff / pairs.length;
+
+      return (1.0 - avgDiff).clamp(0.0, 1.0);
+
+    }
+
+  }
+
+  
+
+pose_result_helper.dart
+  import 'dart:math';
+
+  
+
+  import '../result.dart';
+
+  import '../constants/pose_landmark_index.dart';
+
+  import '../landmark.dart';
+
+  /// PoseResult íŽ¸ì˜ í™•ìž¥
+
+  extension PoseResultHelper on PoseResult {
+
+    /// ì–´ê¹¨ ëŒ€ì¹­ ì ìˆ˜ (0.0~1.0, ìˆ˜í‰ì¼ìˆ˜ë¡ ë†’ìŒ)
+
+    ///
+
+    /// ì–´ê¹¨ê°€ ê¸°ìš¸ì–´ì§ˆìˆ˜ë¡ ì ìˆ˜ê°€ ë‚®ì•„ì§
+
+    double get shoulderSymmetryScore {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+  
+
+      // Yì¢Œí‘œ ì°¨ì´ë¡œ ê¸°ìš¸ê¸° ê³„ì‚° (0ì´ë©´ ì™„ì „ ìˆ˜í‰)
+
+      final yDiff = (leftShoulder.y - rightShoulder.y).abs();
+
+      return (1.0 - yDiff * 5).clamp(0.0, 1.0); // 0.2 ì°¨ì´ë©´ 0ì 
+
+    }
+
+  
+
+    /// ì–´ê¹¨ ì›€ì¸ ë¦¼ ê°ì§€ (ê·€ì™€ ì–´ê¹¨ ê±°ë¦¬ ê¸°ë°˜)
+
+    ///
+
+    /// ê¸´ìž¥í•´ì„œ ì–´ê¹¨ê°€ ì˜¬ë¼ê°”ì„ ë•Œ true
+
+    bool get isShoulderTensed {
+
+      final leftEar = landmarks[PoseLandmarkIndex.leftEar];
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightEar = landmarks[PoseLandmarkIndex.rightEar];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+  
+
+      // ì ˆëŒ€ê°’ ì‚¬ìš© (iOS/Android ì¢Œí‘œê³„ ì°¨ì´ ëŒ€ì‘)
+
+      final leftDist = (leftShoulder.y - leftEar.y).abs();
+
+      final rightDist = (rightShoulder.y - rightEar.y).abs();
+
+      final avgDist = (leftDist + rightDist) / 2;
+
+  
+
+      return avgDist < 0.1; // ê·€-ì–´ê¹¨ ê±°ë¦¬ê°€ ë„ˆë¬´ ê°€ê¹Œìš°ë©´ ì›€ì¸ ë¦¼
+
+    }
+
+  
+
+    /// ì™¼ì† ë³´ìž„ ì—¬ë¶€
+
+    bool get isLeftHandVisible {
+
+      final wrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      return (wrist.visibility ?? 0) > 0.5;
+
+    }
+
+  
+
+    /// ì˜¤ë¥¸ì† ë³´ìž„ ì—¬ë¶€
+
+    bool get isRightHandVisible {
+
+      final wrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+      return (wrist.visibility ?? 0) > 0.5;
+
+    }
+
+  
+
+    /// ì–‘ì† ëª¨ë‘ ë³´ìž„ ì—¬ë¶€
+
+    bool get areBothHandsVisible {
+
+      return isLeftHandVisible && isRightHandVisible;
+
+    }
+
+  
+
+    /// ê³ ê°œ ê¸°ìš¸ê¸° (ë¼ë””ì•ˆ, ì–‘ìˆ˜=ì˜¤ë¥¸ìª½ ê¸°ìš¸ìž„)
+
+    ///
+
+    /// ì–‘ìˆ˜: ì˜¤ë¥¸ìª½ìœ¼ë¡œ ê¸°ìš¸ìž„, ìŒìˆ˜: ì™¼ìª½ìœ¼ë¡œ ê¸°ìš¸ìž„
+
+    double get headTilt {
+
+      final leftEar = landmarks[PoseLandmarkIndex.leftEar];
+
+      final rightEar = landmarks[PoseLandmarkIndex.rightEar];
+
+  
+
+      final dx = rightEar.x - leftEar.x;
+
+      final dy = rightEar.y - leftEar.y;
+
+      return atan2(dy, dx);
+
+    }
+
+  
+
+    /// ê³ ê°œ ê¸°ìš¸ê¸° (ë„ ë‹¨ìœ„)
+
+    double get headTiltDegrees {
+
+      return headTilt * 180 / pi;
+
+    }
+
+  
+
+    /// ëª¸í†µ ê¸°ìš¸ê¸° (ë¼ë””ì•ˆ, ì–‘ìˆ˜=ì˜¤ë¥¸ìª½ ê¸°ìš¸ìž„)
+
+    double get torsoTilt {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+  
+
+      final dx = rightShoulder.x - leftShoulder.x;
+
+      final dy = rightShoulder.y - leftShoulder.y;
+
+      return atan2(dy, dx);
+
+    }
+
+  
+
+    /// ëª¸í†µ ê¸°ìš¸ê¸° (ë„ ë‹¨ìœ„)
+
+    double get torsoTiltDegrees {
+
+      return torsoTilt * 180 / pi;
+
+    }
+
+  
+
+    /// ìžì„¸ ë°”ë¦„ ì ìˆ˜ (0.0~1.0)
+
+    ///
+
+    /// ì–´ê¹¨ ìˆ˜í‰ + ê³ ê°œ ìˆ˜í‰ + ì–´ê¹¨ íŽ´ì§ ì¢…í•©
+
+    double get postureScore {
+
+      final shoulderScore = shoulderSymmetryScore;
+
+      final headScore = (1.0 - headTiltDegrees.abs() / 30).clamp(0.0, 1.0);
+
+      final tensionScore = isShoulderTensed ? 0.0 : 1.0;
+
+  
+
+      return ((shoulderScore + headScore + tensionScore) / 3).clamp(0.0, 1.0);
+
+    }
+
+  
+
+    /// ì™¼íŒ” ë“¤ì–´ì˜¬ë¦¼ ê°ì§€ (ì–´ê¹¨ë³´ë‹¤ ì†ëª©ì´ ìœ„ì— ìžˆìŒ)
+
+    bool get isLeftArmRaised {
+
+      final shoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final wrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      return wrist.y < shoulder.y && (wrist.visibility ?? 0) > 0.5;
+
+    }
+
+  
+
+    /// ì˜¤ë¥¸íŒ” ë“¤ì–´ì˜¬ë¦¼ ê°ì§€
+
+    bool get isRightArmRaised {
+
+      final shoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      final wrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+      return wrist.y < shoulder.y && (wrist.visibility ?? 0) > 0.5;
+
+    }
+
+  
+
+    /// ì–‘íŒ” ëª¨ë‘ ë“¤ì–´ì˜¬ë¦¼ ê°ì§€
+
+    bool get areBothArmsRaised {
+
+      return isLeftArmRaised && isRightArmRaised;
+
+    }
+
+  
+
+    /// ì†ì´ ì–¼êµ´ ê·¼ì²˜ì— ìžˆëŠ”ì§€ ê°ì§€
+
+    ///
+
+    /// ì†ìœ¼ë¡œ ì–¼êµ´ ë§Œì§€ê¸° (ê¸´ìž¥ ì‹ í˜¸) ê°ì§€ì— ìœ ìš©
+
+    bool get isHandNearFace {
+
+      final nose = landmarks[PoseLandmarkIndex.nose];
+
+      final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+  
+
+      // ì½”ì™€ ì†ëª© ì‚¬ì´ ê±°ë¦¬ ê³„ì‚°
+
+      double distance(double x1, double y1, double x2, double y2) {
+
+        return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+
+      }
+
+  
+
+      final leftDist = distance(nose.x, nose.y, leftWrist.x, leftWrist.y);
+
+      final rightDist = distance(nose.x, nose.y, rightWrist.x, rightWrist.y);
+
+  
+
+      // visibility ì²´í¬ í›„ ê±°ë¦¬ í™•ì¸ (ì •ê·œí™” ì¢Œí‘œ ê¸°ì¤€ 0.2 ì´ë‚´)
+
+      final leftNear =
+
+          (leftWrist.visibility ?? 0) > 0.5 && leftDist < 0.2;
+
+      final rightNear =
+
+          (rightWrist.visibility ?? 0) > 0.5 && rightDist < 0.2;
+
+  
+
+      return leftNear || rightNear;
+
+    }
+
+  
+
+    /// íŒ”ì§± ë¼ê¸° ê°ì§€
+
+    ///
+
+    /// ì–‘ ì†ëª©ì´ ëª¸ ì¤‘ì•™ ê·¼ì²˜ì— êµì°¨í•´ ìžˆìŒ
+
+    bool get isArmsCrossed {
+
+      final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+  
+
+      // ì–‘ ì†ëª©ì´ ëª¨ë‘ ë³´ì´ëŠ”ì§€ í™•ì¸
+
+      if ((leftWrist.visibility ?? 0) < 0.5 ||
+
+          (rightWrist.visibility ?? 0) < 0.5) {
+
+        return false;
+
+      }
+
+  
+
+      // ëª¸ ì¤‘ì•™ X ì¢Œí‘œ
+
+      final centerX = (leftShoulder.x + rightShoulder.x) / 2;
+
+  
+
+      // ì™¼ì†ì´ ëª¸ ì˜¤ë¥¸ìª½ì—, ì˜¤ë¥¸ì†ì´ ëª¸ ì™¼ìª½ì— ìžˆìœ¼ë©´ íŒ”ì§±
+
+      final leftCrossed = leftWrist.x > centerX;
+
+      final rightCrossed = rightWrist.x < centerX;
+
+  
+
+      // ì†ëª©ì´ ì–´ê¹¨ì™€ ì—‰ë©ì´ ì‚¬ì´ ë†’ì´ì— ìžˆëŠ”ì§€ í™•ì¸
+
+      final avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+
+      final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+
+      final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+
+      final avgHipY = (leftHip.y + rightHip.y) / 2;
+
+  
+
+      final wristsInTorsoRange =
+
+          leftWrist.y > avgShoulderY &&
+
+          leftWrist.y < avgHipY &&
+
+          rightWrist.y > avgShoulderY &&
+
+          rightWrist.y < avgHipY;
+
+  
+
+      return leftCrossed && rightCrossed && wristsInTorsoRange;
+
+    }
+
+  
+
+    /// ì–´ê¹¨ ë„ˆë¹„ (ì •ê·œí™” ì¢Œí‘œ)
+
+    double get shoulderWidth {
+
+      final left = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final right = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      return (right.x - left.x).abs();
+
+    }
+
+  
+
+    /// í”„ë ˆìž„ ë‚´ ìœ„ì¹˜ (0.0: ì™¼ìª½ ë, 0.5: ì¤‘ì•™, 1.0: ì˜¤ë¥¸ìª½ ë)
+
+    ///
+
+    /// ë°œí‘œìžê°€ í™”ë©´ ì¤‘ì•™ì— ìžˆëŠ”ì§€ í™•ì¸ì— ìœ ìš©
+
+    double get horizontalPosition {
+
+      final left = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final right = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      return (left.x + right.x) / 2;
+
+    }
+
+  
+
+    /// í™”ë©´ ì¤‘ì•™ ìœ„ì¹˜ ì ìˆ˜ (0.0~1.0, ì¤‘ì•™ì¼ìˆ˜ë¡ ë†’ìŒ)
+
+    double get centerPositionScore {
+
+      final pos = horizontalPosition;
+
+      // 0.5ì—ì„œ ë©€ì–´ì§ˆìˆ˜ë¡ ì ìˆ˜ ê°ì†Œ
+
+      return (1.0 - (pos - 0.5).abs() * 2).clamp(0.0, 1.0);
+
+    }
+
+  
+
+    /// ìƒì²´ ë³´ìž„ ì—¬ë¶€ (ì–´ê¹¨ì™€ ì—‰ë©ì´ê°€ ëª¨ë‘ ê°ì§€ë¨)
+
+    bool get isUpperBodyVisible {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+  
+
+      return (leftShoulder.visibility ?? 0) > 0.5 &&
+
+          (rightShoulder.visibility ?? 0) > 0.5;
+
+    }
+
+  
+
+    /// ì–´ê¹¨ì™€ ë°œì˜ X ì¢Œí‘œ ì •ë ¬ (ìŠ¤ì¿¼íŠ¸ ìžì„¸ ê²€ì¦ìš©)
+
+    ///
+
+    /// ê°’ì´ ìž‘ì„ìˆ˜ë¡ ìž˜ ì •ë ¬ë¨ (0.0 = ì™„ë²½í•œ ì •ë ¬)
+
+    double get shoulderFeetAlignment {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+
+      final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+  
+
+      // ì–´ê¹¨ì˜ í‰ê·  X ì¢Œí‘œ
+
+      final shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+
+  
+
+      // ë°œì˜ í‰ê·  X ì¢Œí‘œ
+
+      final feetCenterX = (leftAnkle.x + rightAnkle.x) / 2;
+
+  
+
+      // X ì¢Œí‘œ ì°¨ì´ ë°˜í™˜ (0.0ì— ê°€ê¹Œìš¸ìˆ˜ë¡ ì •ë ¬ë¨)
+
+      return (shoulderCenterX - feetCenterX).abs();
+
+    }
+
+  
+
+    /// ìŠ¤ì¿¼íŠ¸ ìžì„¸ ê²€ì¦ (ì–´ê¹¨ì™€ ë°œì´ ì •ë ¬ë˜ì—ˆëŠ”ì§€ í™•ì¸)
+
+    ///
+
+    /// offset: í—ˆìš© ì˜¤ì°¨ ë²”ìœ„ (ê¸°ë³¸ê°’: 0.5)
+
+    /// trueì´ë©´ ìžì„¸ê°€ ì˜¬ë°”ë¦„
+
+    bool isSquatFormCorrect({double offset = 0.5}) {
+
+      final alignment = shoulderFeetAlignment;
+
+      final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+
+      final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+  
+
+      // ë°œì´ ê°ì§€ë˜ì–´ì•¼ í•¨
+
+      if ((leftAnkle.visibility ?? 0) < 0.5 ||
+
+          (rightAnkle.visibility ?? 0) < 0.5) {
+
+        return false;
+
+      }
+
+  
+
+      // ì–´ê¹¨ì™€ ë°œì´ ì§€ì •ëœ ì˜¤ì°¨ ë²”ìœ„ ë‚´ì— ì •ë ¬ë˜ì–´ì•¼ í•¨
+
+      return alignment <= offset;
+
+    }
+
+  
+
+    /// ì„¸ ê´€ì ˆ ì‚¬ì´ì˜ ê°ë„ ê³„ì‚° (ë„ ë‹¨ìœ„)
+
+    ///
+
+    /// joint1 -> joint2 -> joint3 ìˆœì„œë¡œ ê°ë„ ê³„ì‚°
+
+    /// ë°˜í™˜ê°’: 0 ~ 180ë„
+
+    double getAngleBetweenJoints(Landmark joint1, Landmark joint2, Landmark joint3){    // ë²¡í„° ê³„ì‚°: joint2ì—ì„œ joint1ìœ¼ë¡œì˜ ë²¡í„°
+
+      final v1x = joint1.x - joint2.x;
+
+      final v1y = joint1.y - joint2.y;
+
+  
+
+      // ë²¡í„° ê³„ì‚°: joint2ì—ì„œ joint3ìœ¼ë¡œì˜ ë²¡í„°
+
+      final v2x = joint3.x - joint2.x;
+
+      final v2y = joint3.y - joint2.y;
+
+  
+
+      // ë‚´ì  ê³„ì‚°
+
+      final dotProduct = v1x * v2x + v1y * v2y;
+
+  
+
+      // í¬ê¸° ê³„ì‚°
+
+      final magnitude1 = sqrt(v1x * v1x + v1y * v1y);
+
+      final magnitude2 = sqrt(v2x * v2x + v2y * v2y);
+
+  
+
+      if (magnitude1 == 0 || magnitude2 == 0) return 0;
+
+  
+
+      // ì½”ì‚¬ì¸ ê°’ ê³„ì‚°
+
+      final cosAngle = dotProduct / (magnitude1 * magnitude2);
+
+      final clampedCosAngle = cosAngle.clamp(-1.0, 1.0);
+
+  
+
+      // ë¼ë””ì•ˆì„ ë„ë¡œ ë³€í™˜
+
+      return acos(clampedCosAngle) * 180 / pi;
+
+    }
+
+  
+
+    /// í‘¸ì‰¬ì—… ì‹œìž‘ ìœ„ì¹˜ ê²€ì¦ (íŒ”ì´ íŽ´ì§„ ìƒíƒœ)
+
+    ///
+
+    /// ì–´ê¹¨-íŒ”ê¿ˆì¹˜-ì†ëª©ì´ ê±°ì˜ ì¼ì§ì„  (180ë„ ê·¼ì²˜)
+
+    bool isPushupStartingPositionCorrect({double angleTolerance = 30}) {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+
+      final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+
+      final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+  
+
+      // ê´€ì ˆì´ ê°ì§€ë˜ì–´ì•¼ í•¨
+
+      if ((leftShoulder.visibility ?? 0) < 0.5 ||
+
+          (leftElbow.visibility ?? 0) < 0.5 ||
+
+          (leftWrist.visibility ?? 0) < 0.5 ||
+
+          (rightShoulder.visibility ?? 0) < 0.5 ||
+
+          (rightElbow.visibility ?? 0) < 0.5 ||
+
+          (rightWrist.visibility ?? 0) < 0.5) {
+
+        return false;
+
+      }
+
+  
+
+      // ì–‘íŒ”ì˜ ê°ë„ ê³„ì‚°
+
+      final leftArmAngle = getAngleBetweenJoints(leftShoulder, leftElbow, leftWrist);
+
+      final rightArmAngle = getAngleBetweenJoints(rightShoulder, rightElbow, rightWrist);
+
+  
+
+      // 180ë„ì— ê°€ê¹Œì›Œì•¼ í•¨ (íŽ´ì§„ ìƒíƒœ)
+
+      final leftCorrect = (180 - leftArmAngle).abs() < angleTolerance;
+
+      final rightCorrect = (180 - rightArmAngle).abs() < angleTolerance;
+
+  
+
+      return leftCorrect && rightCorrect;
+
+    }
+
+  
+
+    /// í‘¸ì‰¬ì—… ë‚´ë ¤ê°„ ìœ„ì¹˜ ê²€ì¦ (íŒ”ì´ êµ¬ë¶€ëŸ¬ì§„ ìƒíƒœ)
+
+    ///
+
+    /// ì–´ê¹¨-íŒ”ê¿ˆì¹˜-ì†ëª©ì´ ì•½ 90ë„
+
+    bool isPushupBottomPositionCorrect({double angleTolerance = 30}) {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+
+      final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+
+      final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+  
+
+      // ê´€ì ˆì´ ê°ì§€ë˜ì–´ì•¼ í•¨
+
+      if ((leftShoulder.visibility ?? 0) < 0.5 ||
+
+          (leftElbow.visibility ?? 0) < 0.5 ||
+
+          (leftWrist.visibility ?? 0) < 0.5 ||
+
+          (rightShoulder.visibility ?? 0) < 0.5 ||
+
+          (rightElbow.visibility ?? 0) < 0.5 ||
+
+          (rightWrist.visibility ?? 0) < 0.5) {
+
+        return false;
+
+      }
+
+  
+
+      // ì–‘íŒ”ì˜ ê°ë„ ê³„ì‚°
+
+      final leftArmAngle = getAngleBetweenJoints(leftShoulder, leftElbow, leftWrist);
+
+      final rightArmAngle = getAngleBetweenJoints(rightShoulder, rightElbow, rightWrist);
+
+  
+
+      // 90ë„ì— ê°€ê¹Œì›Œì•¼ í•¨ (êµ¬ë¶€ëŸ¬ì§„ ìƒíƒœ)
+
+      final leftCorrect = (90 - leftArmAngle).abs() < angleTolerance;
+
+      final rightCorrect = (90 - rightArmAngle).abs() < angleTolerance;
+
+  
+
+      return leftCorrect && rightCorrect;
+
+    }
+
+  
+
+    /// í‘¸ì‰¬ì—… íŒ” ê°ë„ (ì–‘íŒ”ì˜ í‰ê· )
+
+    double get pushupArmAngle {
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final leftElbow = landmarks[PoseLandmarkIndex.leftElbow];
+
+      final leftWrist = landmarks[PoseLandmarkIndex.leftWrist];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+      final rightElbow = landmarks[PoseLandmarkIndex.rightElbow];
+
+      final rightWrist = landmarks[PoseLandmarkIndex.rightWrist];
+
+  
+
+      if ((leftElbow.visibility ?? 0) < 0.5 || (rightElbow.visibility ?? 0) < 0.5) {
+
+        return 0;
+
+      }
+
+  
+
+      final leftAngle = getAngleBetweenJoints(leftShoulder, leftElbow, leftWrist);
+
+      final rightAngle = getAngleBetweenJoints(rightShoulder, rightElbow, rightWrist);
+
+  
+
+      return (leftAngle + rightAngle) / 2;
+
+    }
+
+  
+
+    /// ìœ—ëª¸ì¼ìœ¼í‚¤ê¸° ëª¸í†µ ê°ë„ (ëˆ„ìš´ ìƒíƒœ ëŒ€ë¹„ ë“¤ì–´ì˜¬ë¦° ì •ë„)
+
+    ///
+
+    /// 0ë„: ëˆ„ìš´ ìƒíƒœ (ìˆ˜í‰), 90ë„: ì¼ì–´ë‚œ ìƒíƒœ (ìˆ˜ì§)
+
+    /// ë°˜í™˜ê°’: 0 ~ 90ë„
+
+    double get situpTorsoAngle {
+
+      final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+
+      final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+      final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+
+  
+
+      // ì¤‘ì‹¬ì  ê³„ì‚°
+
+      final hipCenterX = (leftHip.x + rightHip.x) / 2;
+
+      final hipCenterY = (leftHip.y + rightHip.y) / 2;
+
+      final shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+
+      final shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+
+  
+
+      // ê³¨ë°˜ì—ì„œ ì–´ê¹¨ë¡œì˜ ë²¡í„°
+
+      final dx = shoulderCenterX - hipCenterX;
+
+      final dy = shoulderCenterY - hipCenterY;
+
+  
+
+      // ìˆ˜í‰ì¶•ìœ¼ë¡œë¶€í„°ì˜ ê°ë„ (MediaPipeì—ì„œ yëŠ” ì•„ëž˜ë¡œ ì¦ê°€)
+
+      // ëˆ„ìš´ ìƒíƒœ: dy â‰ˆ 0, ê°ë„ â‰ˆ 0
+
+      // ì•‰ì€ ìƒíƒœ: dy < 0 (ì–´ê¹¨ê°€ ê³¨ë°˜ ìœ„), ê°ë„ ì¦ê°€
+
+      final angleRad = atan2(-dy, dx); // dyë¥¼ ìŒìˆ˜ë¡œ ì²˜ë¦¬ (yëŠ” ì•„ëž˜ë¡œ ì¦ê°€í•˜ë¯€ë¡œ)
+
+      final angleDeg = angleRad * 180 / pi;
+
+  
+
+      // 0-90 ë²”ìœ„ë¡œ ì •ê·œí™”
+
+      return angleDeg.abs().clamp(0.0, 90.0);
+
+    }
+
+  
+
+    /// ìœ—ëª¸ì¼ìœ¼í‚¤ê¸° ëˆ„ìš´ ìžì„¸ ê°ì§€
+
+    ///
+
+    /// ëª¸í†µ ê°ë„ê°€ 30ë„ ë¯¸ë§Œì¼ ë•Œ (ê±°ì˜ ëˆ„ìš´ ìƒíƒœ)
+
+    bool get isSitupDownPosition {
+
+      final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+  
+
+      if ((leftHip.visibility ?? 0) < 0.5 ||
+
+          (leftShoulder.visibility ?? 0) < 0.5) {
+
+        return false;
+
+      }
+
+  
+
+      return situpTorsoAngle < 30;
+
+    }
+
+  
+
+    /// ìœ—ëª¸ì¼ìœ¼í‚¤ê¸° ì•‰ì€ ìžì„¸ ê°ì§€
+
+    ///
+
+    /// ëª¸í†µ ê°ë„ê°€ 60ë„ ì´ìƒì¼ ë•Œ (ì¶©ë¶„ížˆ ë“¤ì–´ì˜¬ë¦° ìƒíƒœ)
+
+    bool get isSitupUpPosition {
+
+      final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+
+      final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+
+  
+
+      if ((leftHip.visibility ?? 0) < 0.5 ||
+
+          (leftShoulder.visibility ?? 0) < 0.5) {
+
+        return false;
+
+      }
+
+  
+
+      return situpTorsoAngle >= 60;
+
+    }
+
+  }
+
+  
+
+platform_channel.dart
+  import 'package:flutter/services.dart';
+
+  
+
+  /// Platform Channel ì •ì˜
+
+  class PlatformChannel {
+
+    PlatformChannel._();
+
+  
+
+    static const MethodChannel channel =
+
+        MethodChannel('com.kwon.mediapipe_landmarker');
+
+  
+
+    static const EventChannel eventChannel =
+
+        EventChannel('com.kwon.mediapipe_landmarker/stream');
+
+  }
+
+  
+
+  /// ë©”ì„œë“œ ì´ë¦„ ìƒìˆ˜
+
+  class MethodNames {
+
+    MethodNames._();
+
+  
+
+    static const String initialize = 'initialize';
+
+    static const String detect = 'detect';
+
+    static const String startStream = 'startStream';
+
+    static const String stopStream = 'stopStream';
+
+    static const String dispose = 'dispose';
+
+  }
+
+  
+
+  /// íŒŒë¼ë¯¸í„° í‚¤ ìƒìˆ˜
+
+  class ParamKeys {
+
+    ParamKeys._();
+
+  
+
+    // Initialize
+
+    static const String enableFace = 'enableFace';
+
+    static const String enablePose = 'enablePose';
+
+    static const String faceNumFaces = 'faceNumFaces';
+
+    static const String faceMinDetectionConfidence = 'faceMinDetectionConfidence';
+
+    static const String faceMinTrackingConfidence = 'faceMinTrackingConfidence';
+
+    static const String faceOutputBlendshapes = 'faceOutputBlendshapes';
+
+    static const String faceOutputTransformationMatrix =
+
+        'faceOutputTransformationMatrix';
+
+    static const String poseNumPoses = 'poseNumPoses';
+
+    static const String poseMinDetectionConfidence = 'poseMinDetectionConfidence';
+
+    static const String poseMinTrackingConfidence = 'poseMinTrackingConfidence';
+
+  
+
+    // Detect
+
+    static const String imageBytes = 'imageBytes';
+
+    static const String imageWidth = 'imageWidth';
+
+    static const String imageHeight = 'imageHeight';
+
+    static const String imageRotation = 'imageRotation';
+
+    static const String imageFormat = 'imageFormat';
+
+  
+
+    // Camera Stream (YUV planes)
+
+    static const String planes = 'planes';
+
+    static const String bytesPerRow = 'bytesPerRow';
+
+  }
+
+  
+
+  /// ì—ëŸ¬ ì½”ë“œ ìƒìˆ˜
+
+  class ErrorCodes {
+
+    ErrorCodes._();
+
+  
+
+    static const String notInitialized = 'NOT_INITIALIZED';
+
+    static const String initializationFailed = 'INITIALIZATION_FAILED';
+
+    static const String modelLoadFailed = 'MODEL_LOAD_FAILED';
+
+    static const String detectionFailed = 'DETECTION_FAILED';
+
+    static const String invalidImage = 'INVALID_IMAGE';
+
+    static const String platformNotSupported = 'PLATFORM_NOT_SUPPORTED';
+
+  }
+
+  
+

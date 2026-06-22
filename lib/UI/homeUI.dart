@@ -79,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         color: Color.fromARGB(255, 8, 14, 19),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                        border: Border.all(color: Colors.orange, width: 2),
                       ),
                       width: 80,
                       height: 80,
@@ -103,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         color: Color.fromARGB(255, 8, 14, 19),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                        border: Border.all(color: Colors.orange, width: 2),
                       ),
                       width: 80,
                       height: 80,
@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         color: Color.fromARGB(255, 8, 14, 19),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                        border: Border.all(color: Colors.orange, width: 2),
                       ),
                       width: 80,
                       height: 80,
@@ -151,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         color: Color.fromARGB(255, 8, 14, 19),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color.fromARGB(255, 211, 160, 84), width: 2),
+                        border: Border.all(color: Colors.orange, width: 2),
                       ),
                       width: 80,
                       height: 80,
@@ -217,7 +217,7 @@ Widget _buildBar(HomeLogic data) {
           heightFactor: data.fillPercentage.clamp(0.0, 1.0),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color.fromARGB(179, 211, 160, 84),
+              color: const Color.fromARGB(255, 206, 132, 21),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
