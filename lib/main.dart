@@ -7,6 +7,7 @@ import "Logic/home_logic.dart";
 import 'Logic/workout_logic.dart';
 import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
+import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
 import 'UI/yearly_progress_chart.dart';
 
@@ -79,7 +80,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               },
             )
           : const WorkoutDetailScreen(),
-      const Center(child: Text("Diet Screen", style: TextStyle(fontSize: 24))),
+      const DietPage(),
     ];
 
     return Scaffold(
@@ -93,7 +94,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: 'Workouts'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.fitness_center),
+            label: 'Workouts',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Diet'),
         ],
       ),

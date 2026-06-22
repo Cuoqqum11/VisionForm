@@ -36,12 +36,13 @@ dependencies:
   permission_handler: ^12.0.1
   path: ^1.9.1
   path_provider: ^2.1.5
+  flutter_gemini: ^3.0.0
+  flutter_dotenv: ^6.0.1
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  image_picker: ^1.2.1
   kwon_mediapipe_landmarker: ^0.0.3
-  flutter_dotenv: ^6.0.1
-  flutter_gemini: ^3.0.0
   fl_chart: ^1.2.0
   intl: ^0.20.2
 
@@ -78,6 +79,7 @@ flutter:
     - assets/images/pullups.jpg
     - assets/images/squat.jpg
     - assets/images/situp.jpg
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
