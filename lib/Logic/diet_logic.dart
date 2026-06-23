@@ -218,7 +218,7 @@ void setDietType(String dietType) {
     final picker = ImagePicker();
     final XFile? file = await picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      imageQuality: 80,
+      imageQuality: 70,
       maxWidth: 1024,
     );
     if (file == null) return; 

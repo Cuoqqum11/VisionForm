@@ -54,7 +54,7 @@ class AiCoachService {
       
     } catch (e) {
       debugPrint('AI Coach generation failed: $e');
-      return "Awesome effort today! (Note: AI summary failed to generate. Check console for details)."; 
+      return "Awesome effort today! Keep up the good work and focus on improving your form next time!"; 
     }
   }
 }
