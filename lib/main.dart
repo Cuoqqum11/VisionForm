@@ -19,7 +19,7 @@ Future<void> main() async {
   // Load the secret .env file
   await dotenv.load(fileName: ".env");
 
-  final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+  final apiKey = dotenv.env['KEY'] ?? '';
 
   Gemini.init(
     apiKey: apiKey,

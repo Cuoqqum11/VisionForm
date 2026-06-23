@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../models/daily_workout_summary.dart';
-import '../Logic/chart_mock_data.dart';
 import '../database/database_helper.dart';
 
 class YearlyProgressChart extends StatefulWidget {
@@ -18,6 +17,11 @@ class _YearlyProgressChartState extends State<YearlyProgressChart> {
   bool _isLoading = true;
 
   @override
+    void initState() {
+    super.initState();
+    _loadRealData();
+  }
+  
   Future<void> _loadRealData() async {
     // Call our new Singleton database helper
     final dbHelper = DatabaseHelper();

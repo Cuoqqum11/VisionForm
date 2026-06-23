@@ -79,7 +79,6 @@ flutter:
     - assets/images/pullups.jpg
     - assets/images/squat.jpg
     - assets/images/situp.jpg
-    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
