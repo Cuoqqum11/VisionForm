@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import "package:flutter_application_1/Logic/home_logic.dart";
 import 'package:flutter_application_1/UI/yearly_progress_chart.dart';
+import 'package:flutter_application_1/Logic/diet_logic.dart';
+import 'package:provider/provider.dart';
 
 
 class HomeUI extends StatelessWidget {
@@ -9,6 +11,7 @@ class HomeUI extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 8, 14, 19),
       appBar: AppBar(
@@ -34,16 +37,19 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
+    final diet = context.watch<DietLogic>();
+
     return SingleChildScrollView( 
       child: Column(
         children: [
           const SizedBox(height: 16),
 
-          // 1. THE NEW YEARLY PROGRESS CHART
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: YearlyProgressChart(), 
-          ),
+        // 1. THE NEW YEARLY PROGRESS CHART
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: YearlyProgressChart(), 
+        ),
 
           // 2. THE NUTRITION MACROS
           Container(
@@ -67,12 +73,12 @@ class HomeScreen extends StatelessWidget {
                       ),
                       width: 80,
                       height: 80,
-                      child: const Center(
-                        child: Text("120g", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Center(
+                        child: Text("${diet.todaysCalories}", style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text("Calories", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Text("kcal", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 Column(
@@ -85,8 +91,8 @@ class HomeScreen extends StatelessWidget {
                       ),
                       width: 80,
                       height: 80,
-                      child: const Center(
-                        child: Text("100g", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Center(
+                        child: Text("${diet.todaysProtein}g", style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -103,8 +109,8 @@ class HomeScreen extends StatelessWidget {
                       ),
                       width: 80,
                       height: 80,
-                      child: const Center(
-                        child: Text("150g", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Center(
+                        child: Text("${diet.todaysCarbs}g", style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -121,8 +127,8 @@ class HomeScreen extends StatelessWidget {
                       ),
                       width: 80,
                       height: 80,
-                      child: const Center(
-                        child: Text("70g", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Center(
+                        child: Text("${diet.todaysFat}g", style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 8),

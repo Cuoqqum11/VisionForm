@@ -3,13 +3,14 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
 
+import 'Logic/diet_logic.dart';
 import "Logic/home_logic.dart";
 import 'Logic/workout_logic.dart';
 import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
 import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
-import 'UI/yearly_progress_chart.dart';
+
 
 Future<void> main() async {
   // Ensure Flutter bindings are initialized before loading anything
@@ -25,10 +26,13 @@ Future<void> main() async {
   );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => WorkoutProvide(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => WorkoutProvide()),
+        ChangeNotifierProvider(create: (context) => DietLogic()),
+      ],
       child: const MyApp(),
-    ),
+    ),    
   );
 }
 

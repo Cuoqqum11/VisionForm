@@ -130,8 +130,6 @@ class MealSuggestion {
 }
  
 /// A saved meal shown in the bottom row on the entry screen.
-/// Carries full macros so it can be logged to the database directly,
-/// without needing another AI call.
 class SavedMeal {
   final String name;
   final String tag;
@@ -139,14 +137,18 @@ class SavedMeal {
   final int protein;
   final int carbs;
   final int fat;
- 
+  final List<String> usedIngredients;
+  final List<MealStep> steps;
+
   const SavedMeal({
     required this.name,
     required this.tag,
     required this.calories,
-    this.protein = 0,
-    this.carbs = 0,
-    this.fat = 0,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+    this.usedIngredients = const [],
+    this.steps = const [],
   });
 }
  

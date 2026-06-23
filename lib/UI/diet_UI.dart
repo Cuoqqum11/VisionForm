@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../Logic/diet_logic.dart';
 import '../models/diet_models.dart';
- 
-// ═══════════════════════════════════════════════════════════════════
+import 'package:flutter_application_1/Logic/diet_logic.dart';
+
+// ═════════════════════════════════════════════════════════════════════════════
 // Shared colours — mirrors the rest of the app's dark theme
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _C {
   static const bg = Color(0xFF080E13);
   static const surface = Color(0xFF1C1F24);
@@ -19,18 +19,15 @@ class _C {
   static const white38 = Colors.white38;
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // Root widget — injects DietLogic and routes between states
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class DietPage extends StatelessWidget {
   const DietPage({super.key});
  
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => DietLogic(),
-      child: const _DietRouter(),
-    );
+    return const _DietRouter();
   }
 }
  
@@ -40,7 +37,6 @@ class _DietRouter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final logic = context.watch<DietLogic>();
- 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 280),
       child: switch (logic.state) {
@@ -60,15 +56,15 @@ class _DietRouter extends StatelessWidget {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // STATE 1 — Entry screen
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _EntryScreen extends StatelessWidget {
   const _EntryScreen({super.key});
  
   @override
   Widget build(BuildContext context) {
-    final logic = context.watch<DietLogic>();
+    final diet = context.watch<DietLogic>();
  
     return Scaffold(
       backgroundColor: _C.bg,
@@ -88,18 +84,18 @@ class _EntryScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 4),
  
-              // ── Profile pickers ─────────────────────────────────
-              _ProfilePickers(logic: logic),
+              // ── Profile pickers ────────────────────────────────────────
+              _ProfilePickers(logic: diet),
               const SizedBox(height: 24),
  
-              // ── Main scan CTA ───────────────────────────────────
-              _ScanButton(logic: logic),
+              // ── Main scan CTA ──────────────────────────────────────────
+              _ScanButton(logic: diet),
               const SizedBox(height: 14),
  
-              // ── Manual fallback ─────────────────────────────────
+              // ── Manual fallback ────────────────────────────────────────
               Center(
                 child: TextButton.icon(
-                  onPressed: () => logic.scanFridge(fromCamera: false),
+                onPressed: () => diet.scanFridge(fromCamera: false),
                   icon: const Icon(Icons.photo_library_outlined,
                       color: _C.white38, size: 16),
                   label: const Text(
@@ -110,8 +106,8 @@ class _EntryScreen extends StatelessWidget {
               ),
               const SizedBox(height: 28),
  
-              // ── Saved meals ─────────────────────────────────────
-              if (logic.savedMeals.isNotEmpty) ...[
+              // ── Saved meals ────────────────────────────────────────────
+              if (diet.savedMeals.isNotEmpty) ...[
                 Row(
                   children: const [
                     Text(
@@ -124,7 +120,7 @@ class _EntryScreen extends StatelessWidget {
                     ),
                     Spacer(),
                     Text(
-                      'Tap to log',
+                      'Tap to view',
                       style: TextStyle(color: _C.white38, fontSize: 11),
                     ),
                   ],
@@ -134,14 +130,12 @@ class _EntryScreen extends StatelessWidget {
                   height: 96,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: logic.savedMeals.length,
+                    itemCount: diet.savedMeals.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 10),
                     itemBuilder: (_, i) {
-                      final meal = logic.savedMeals[i];
+                      final meal = diet.savedMeals[i];
                       return _SavedMealCard(
                         meal: meal,
-                        logged: logic.isSavedMealLoggedToday(meal.name),
-                        onTap: () => _logSavedMeal(context, logic, meal),
                       );
                     },
                   ),
@@ -154,24 +148,9 @@ class _EntryScreen extends StatelessWidget {
       ),
     );
   }
- 
-  void _logSavedMeal(
-      BuildContext context, DietLogic logic, SavedMeal meal) async {
-    if (logic.isSavedMealLoggedToday(meal.name)) return;
-    await logic.finalizeSavedMeal(meal);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${meal.name} logged for today'),
-          backgroundColor: _C.card,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
 }
  
-// ── Profile pickers (goal + diet type) ───────────────────────────────
+// ── Profile pickers (goal + diet type) ──────────────────────────────────
 class _ProfilePickers extends StatelessWidget {
   final DietLogic logic;
   const _ProfilePickers({required this.logic});
@@ -225,7 +204,7 @@ class _ProfilePickers extends StatelessWidget {
   }
 }
  
-// ── A single labeled dropdown ─────────────────────────────────────────
+// ── A single labeled dropdown ───────────────────────────────────────────
 class _LabeledDropdown extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -285,7 +264,7 @@ class _LabeledDropdown extends StatelessWidget {
   }
 }
  
-// ── The big scan CTA button ───────────────────────────────────────────
+// ── The big scan CTA button ─────────────────────────────────────────────
 class _ScanButton extends StatelessWidget {
   final DietLogic logic;
   const _ScanButton({required this.logic});
@@ -335,32 +314,31 @@ class _ScanButton extends StatelessWidget {
   }
 }
  
-// ── A saved meal card ────────────────────────────────────────────────
+// ── A saved meal card ───────────────────────────────────────────────────
 class _SavedMealCard extends StatelessWidget {
   final SavedMeal meal;
-  final bool logged;
-  final VoidCallback onTap;
- 
-  const _SavedMealCard({
-    required this.meal,
-    required this.logged,
-    required this.onTap,
-  });
- 
+
+  const _SavedMealCard({required this.meal});
+
   @override
   Widget build(BuildContext context) {
+    final diet = context.watch<DietLogic>();
+    final isLogged = diet.isSavedMealLoggedToday(meal.name);
     final tagColor = kTagColors[meal.tag] ?? _C.gold;
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        // Now it opens the details page instead of instantly logging!
+        diet.viewSavedMeal(meal); 
+      },
       child: Container(
-        width: 140,
+        width: 160,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _C.card,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: logged ? _C.gold : _C.surface,
-            width: logged ? 1.2 : 1,
+            color: isLogged ? _C.gold : _C.surface,
+            width: isLogged ? 1.2 : 1,
           ),
         ),
         child: Column(
@@ -380,7 +358,7 @@ class _SavedMealCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (logged)
+                if (isLogged)
                   const Icon(Icons.check_circle, color: _C.gold, size: 14),
               ],
             ),
@@ -388,9 +366,9 @@ class _SavedMealCard extends StatelessWidget {
             _TagChip(label: meal.tag, color: tagColor),
             const SizedBox(height: 4),
             Text(
-              logged ? 'Logged today' : '${meal.calories} kcal',
+              isLogged ? 'Logged today' : '${meal.calories} kcal',
               style: TextStyle(
-                color: logged ? _C.gold : _C.white38,
+                color: isLogged ? _C.gold : _C.white38,
                 fontSize: 11,
               ),
             ),
@@ -401,9 +379,9 @@ class _SavedMealCard extends StatelessWidget {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // STATE 2 — Ingredient review screen (checkboxes)
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _ReviewScreen extends StatefulWidget {
   const _ReviewScreen({super.key});
  
@@ -436,7 +414,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────
+            // ── Top bar ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
@@ -444,7 +422,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
                   IconButton(
                     icon: const Icon(Icons.arrow_back_ios_new,
                         color: _C.white70, size: 18),
-                    onPressed: logic.goToEntry,
+                    onPressed: logic.goToEntry, 
                   ),
                   const Expanded(
                     child: Text(
@@ -464,7 +442,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
               ),
             ),
  
-            // ── Fridge photo preview ─────────────────────────────
+            // ── Fridge photo preview ────────────────────────────────────
             if (logic.pickedImage != null)
               Padding(
                 padding:
@@ -480,7 +458,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
                 ),
               ),
  
-            // ── Ingredient checkbox list ──────────────────────────
+            // ── Ingredient checkbox list ────────────────────────────────
             Expanded(
               child: logic.allIngredients.isEmpty
                   ? const Center(
@@ -511,7 +489,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
                     ),
             ),
  
-            // ── Add ingredient input ─────────────────────────────
+            // ── Add ingredient input ────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
@@ -568,7 +546,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
               ),
             ),
  
-            // ── Hint ─────────────────────────────────────────────
+            // ── Hint ────────────────────────────────────────────────────
             const Padding(
               padding: EdgeInsets.only(bottom: 4),
               child: Text(
@@ -577,7 +555,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
               ),
             ),
  
-            // ── Find meals button ─────────────────────────────────
+            // ── Find meals button ───────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: SizedBox(
@@ -620,7 +598,7 @@ class _ReviewScreenState extends State<_ReviewScreen> {
   }
 }
  
-// ── A single ingredient checkbox row ────────────────────────────────
+// ── A single ingredient checkbox row ────────────────────────────────────
 class _IngredientRow extends StatelessWidget {
   final String name;
   final bool checked;
@@ -703,9 +681,9 @@ class _IngredientRow extends StatelessWidget {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // LOADING — spinner while Gemini works
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _LoadingScreen extends StatelessWidget {
   const _LoadingScreen({super.key});
  
@@ -736,9 +714,9 @@ class _LoadingScreen extends StatelessWidget {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // STATE 3 — Meal list (3 suggestions, full macros, "Make this" button)
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _MealListScreen extends StatelessWidget {
   const _MealListScreen({super.key});
  
@@ -751,7 +729,7 @@ class _MealListScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────
+            // ── Top bar ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
@@ -791,7 +769,7 @@ class _MealListScreen extends StatelessWidget {
               ),
             ),
  
-            // ── Meal cards list ───────────────────────────────────
+            // ── Meal cards list ─────────────────────────────────────────
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -811,7 +789,7 @@ class _MealListScreen extends StatelessWidget {
   }
 }
  
-// ── A small profile info pill ──────────────────────────────────────
+// ── A small profile info pill ───────────────────────────────────────────
 class _InfoPill extends StatelessWidget {
   final String label;
   const _InfoPill({required this.label});
@@ -832,9 +810,9 @@ class _InfoPill extends StatelessWidget {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // Meal option card — shown in the meal list (no steps yet)
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _MealOptionCard extends StatefulWidget {
   final MealSuggestion meal;
   final VoidCallback onSave;
@@ -866,7 +844,7 @@ class _MealOptionCardState extends State<_MealOptionCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header: name + tag + save ──────────────────────────
+          // ── Header: name + tag + save ───────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
             child: Row(
@@ -919,7 +897,7 @@ class _MealOptionCardState extends State<_MealOptionCard> {
  
           const Divider(color: Color(0xFF2D2F36), height: 1),
  
-          // ── Macros row ────────────────────────────────────────
+          // ── Macros row ────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -955,7 +933,7 @@ class _MealOptionCardState extends State<_MealOptionCard> {
             ),
           ),
  
-          // ── Ingredients used ─────────────────────────────────
+          // ── Ingredients used ──────────────────────────────────────────
           if (widget.meal.usedIngredients.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
@@ -980,7 +958,7 @@ class _MealOptionCardState extends State<_MealOptionCard> {
               ),
             ),
  
-          // ── Make this meal button ─────────────────────────────
+          // ── Make this meal button ─────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: SizedBox(
@@ -1011,9 +989,9 @@ class _MealOptionCardState extends State<_MealOptionCard> {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // STATE 4 — Meal detail (one chosen meal, instructions + Log button)
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _MealDetailScreen extends StatelessWidget {
   const _MealDetailScreen({super.key});
  
@@ -1034,7 +1012,7 @@ class _MealDetailScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────
+            // ── Top bar ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
@@ -1070,7 +1048,7 @@ class _MealDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ── Name + tag ───────────────────────────
+                      // ── Name + tag ────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                         child: Column(
@@ -1091,7 +1069,7 @@ class _MealDetailScreen extends StatelessWidget {
  
                       const Divider(color: Color(0xFF2D2F36), height: 1),
  
-                      // ── Macros row ───────────────────────────
+                      // ── Macros row ────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 14),
@@ -1128,7 +1106,7 @@ class _MealDetailScreen extends StatelessWidget {
                         ),
                       ),
  
-                      // ── Ingredients used ─────────────────────
+                      // ── Ingredients used ──────────────────────────────
                       if (meal.usedIngredients.isNotEmpty)
                         Padding(
                           padding:
@@ -1158,7 +1136,7 @@ class _MealDetailScreen extends StatelessWidget {
  
                       const Divider(color: Color(0xFF2D2F36), height: 1),
  
-                      // ── How to make it (always expanded here) ─
+                      // ── How to make it ────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 13, 16, 4),
                         child: Row(
@@ -1191,7 +1169,7 @@ class _MealDetailScreen extends StatelessWidget {
               ),
             ),
  
-            // ── Log this meal button ───────────────────────────
+            // ── Log this meal button ────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: SizedBox(
@@ -1233,7 +1211,7 @@ class _MealDetailScreen extends StatelessWidget {
   }
 }
  
-// ── A single cooking step row ──────────────────────────────────────
+// ── A single cooking step row ───────────────────────────────────────────
 class _StepRow extends StatelessWidget {
   final MealStep step;
   const _StepRow({required this.step});
@@ -1277,7 +1255,7 @@ class _StepRow extends StatelessWidget {
   }
 }
  
-// ── Macro tile ────────────────────────────────────────────────────
+// ── Macro tile ──────────────────────────────────────────────────────────
 class _MacroTile extends StatelessWidget {
   final String label;
   final String value;
@@ -1325,7 +1303,7 @@ class _MacroTile extends StatelessWidget {
   }
 }
  
-// ── Thin vertical divider between macro tiles ──────────────────────
+// ── Thin vertical divider between macro tiles ───────────────────────────
 class _VerticalDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1337,7 +1315,7 @@ class _VerticalDivider extends StatelessWidget {
   }
 }
  
-// ── Tag chip ───────────────────────────────────────────────────────
+// ── Tag chip ────────────────────────────────────────────────────────────
 class _TagChip extends StatelessWidget {
   final String label;
   final Color color;
@@ -1362,9 +1340,9 @@ class _TagChip extends StatelessWidget {
   }
 }
  
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // Error screen
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 class _ErrorScreen extends StatelessWidget {
   final String message;
   const _ErrorScreen({super.key, required this.message});
