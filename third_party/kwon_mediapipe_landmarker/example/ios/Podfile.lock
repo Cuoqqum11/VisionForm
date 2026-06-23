@@ -1,0 +1,45 @@
+PODS:
+  - camera_avfoundation (0.0.1):
+    - Flutter
+  - Flutter (1.0.0)
+  - kwon_mediapipe_landmarker (0.0.1):
+    - Flutter
+    - MediaPipeTasksVision (~> 0.10.14)
+  - MediaPipeTasksCommon (0.10.21)
+  - MediaPipeTasksVision (0.10.21):
+    - MediaPipeTasksCommon (= 0.10.21)
+  - permission_handler_apple (9.3.0):
+    - Flutter
+
+DEPENDENCIES:
+  - camera_avfoundation (from `.symlinks/plugins/camera_avfoundation/ios`)
+  - Flutter (from `Flutter`)
+  - kwon_mediapipe_landmarker (from `.symlinks/plugins/kwon_mediapipe_landmarker/ios`)
+  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+
+SPEC REPOS:
+  trunk:
+    - MediaPipeTasksCommon
+    - MediaPipeTasksVision
+
+EXTERNAL SOURCES:
+  camera_avfoundation:
+    :path: ".symlinks/plugins/camera_avfoundation/ios"
+  Flutter:
+    :path: Flutter
+  kwon_mediapipe_landmarker:
+    :path: ".symlinks/plugins/kwon_mediapipe_landmarker/ios"
+  permission_handler_apple:
+    :path: ".symlinks/plugins/permission_handler_apple/ios"
+
+SPEC CHECKSUMS:
+  camera_avfoundation: 5675ca25298b6f81fa0a325188e7df62cc217741
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  kwon_mediapipe_landmarker: bcd467fb905291d89d61401e0a9d96cafc1da5ce
+  MediaPipeTasksCommon: 6cfa29170d4900f04d250ad95ec058f14a741f38
+  MediaPipeTasksVision: 7b1c0f5a5820e87e9d96926f5e65d8cd3744fac2
+  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
+
+PODFILE CHECKSUM: 86fbd133a80d24604e8a5d1db740f3b771790da1
+
+COCOAPODS: 1.16.2

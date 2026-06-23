@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/models/workout_record_model.dart';
+import '../models/workout_session_summary.dart';
 import '../models/workout_model.dart';
 import '../database/database_service.dart';
 
@@ -7,12 +8,14 @@ class WorkoutProvide extends ChangeNotifier {
   List<Workout> _workout = [];
   List<WorkoutRecord> _workoutRecord = [];  
   Workout? _selectedWorkout;
+  WorkoutSessionSummary? _latestWorkoutSummary;
   bool _isLoading = true;
   String? _errorMessage;
 
   List<Workout> get workout => _workout;
   List<WorkoutRecord> get workoutRecord => _workoutRecord;
   Workout? get selectedWorkout => _selectedWorkout;
+  WorkoutSessionSummary? get latestWorkoutSummary => _latestWorkoutSummary;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -140,6 +143,11 @@ class WorkoutProvide extends ChangeNotifier {
     if (workout != null) {
       fetchHistory(workout.id!);
     }
+    notifyListeners();
+  }
+
+  void setLatestWorkoutSummary(WorkoutSessionSummary? summary) {
+    _latestWorkoutSummary = summary;
     notifyListeners();
   }
 

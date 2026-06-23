@@ -49,7 +49,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-
+  
   @override
   void initState() {
     super.initState();
