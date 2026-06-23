@@ -328,7 +328,7 @@ class _SavedMealCard extends StatelessWidget {
                 color: _C.white,
                 fontSize: 13,
                 fontWeight: FontWeight.w600),
-            maxLines: 3,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 5), // Replaced Spacer() with fixed spacing
