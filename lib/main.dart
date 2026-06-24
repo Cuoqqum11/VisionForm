@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_gemini/flutter_gemini.dart';
+import 'package:flutter_gemini/flutter_gemini.dart'; // Kept Gemini package
 
 import 'Logic/diet_logic.dart';
 import "Logic/home_logic.dart";
@@ -11,15 +10,12 @@ import 'UI/workout_detail_screen.dart';
 import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
 
-
 Future<void> main() async {
-  // Ensure Flutter bindings are initialized before loading anything
+  // Ensure Flutter bindings are initialized before running the app
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load the secret .env file
-  await dotenv.load(fileName: ".env");
-
-  final apiKey = dotenv.env['KEY'] ?? '';
+  // Directly passing the API key string to completely bypass flutter_dotenv
+  const String apiKey = 'KEY';
 
   Gemini.init(
     apiKey: apiKey,
@@ -73,8 +69,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedWorkout = context.watch<WorkoutProvide>().selectedWorkout;
+    
+    // NOTE: If 'data' throws a compiler error, replace it with actual data from your provider 
+    // e.g., Provider.of<HomeLogic>(context).yourData
+    
+    // NOTE: If 'data' throws a compiler error, replace it with actual data from your provider 
+    // e.g., Provider.of<HomeLogic>(context).yourData
     final List<Widget> pages = [
-      HomeUI(data: data),
+      HomeUI(data: data), 
       selectedWorkout == null
           ? WorkoutListScreen(
               onWorkoutSelected: () {
