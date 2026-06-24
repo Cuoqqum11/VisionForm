@@ -13,7 +13,10 @@ class DietLogic extends ChangeNotifier {
   DietFlowState _state = DietFlowState.entry;
   DietFlowState get state => _state;
  
-  bool _isViewingSavedMeal = false; // Add this tracking flag
+  bool _isViewingSavedMeal = false;
+
+  // Prevents duplicate Gemini calls if the user taps repeatedly
+  bool _isBusy = false;
 
 
   // ── Today's Macros (For Home Screen) ───────────────────────────────────
@@ -215,14 +218,17 @@ void setDietType(String dietType) {
  
   // ── Step 1: Pick image & detect ingredients ───────────────────────────────
   Future<void> scanFridge({bool fromCamera = true}) async {
+    if (_isBusy) return;
+
     final picker = ImagePicker();
     final XFile? file = await picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
       imageQuality: 70,
       maxWidth: 1024,
     );
-    if (file == null) return; 
- 
+    if (file == null) return;
+
+    _isBusy = true;
     _pickedImage = file;
     _ingredients.clear();
     _state = DietFlowState.loading;
@@ -231,7 +237,7 @@ void setDietType(String dietType) {
  
     try {
       final imageBytes = await file.readAsBytes();
- 
+
       final parts = [
         Part.text(
           'Look at this fridge or ingredients photo and list every individual '
@@ -246,36 +252,45 @@ void setDietType(String dietType) {
           InlineData(mimeType: 'image/jpeg', data: base64Encode(imageBytes)),
         ),
       ];
- 
-      // Multi-modal uses _promptWithRetry
+
       final response = await Gemini.instance.prompt(parts: parts);
-      
+
       final raw = response?.output?.trim() ?? '[]';
+      debugPrint('📥 RAW scanFridge response: $raw');
       final cleaned = _stripFences(raw);
- 
+
       final List<dynamic> list = jsonDecode(cleaned) as List<dynamic>;
       for (final item in list) {
         final name = item.toString().trim();
         if (name.isNotEmpty) _ingredients[name] = true;
       }
- 
+
       _state = DietFlowState.review;
     } catch (e) {
       debugPrint('🚨 GEMINI CRASH REPORT (scanFridge): $e');
-      _state = DietFlowState.review;
+      if (_isRateLimitError(e)) {
+        _errorMessage = 'Gemini is busy — wait 30 seconds then try again.';
+        _state = DietFlowState.error;
+      } else {
+        // Non-rate-limit error: still drop to review so user can type ingredients manually
+        _state = DietFlowState.review;
+      }
+    } finally {
+      _isBusy = false;
     }
- 
+
     notifyListeners();
   }
  
   // ── Step 2: Generate 3 meal options (names + macros, no steps yet) ────────
   Future<void> getMealRecommendations() async {
-    if (confirmedIngredients.isEmpty) return;
- 
+    if (confirmedIngredients.isEmpty || _isBusy) return;
+
+    _isBusy = true;
     _state = DietFlowState.loading;
     _errorMessage = null;
     notifyListeners();
- 
+
     final prompt = '''
 You are a fitness nutrition coach. Based on the information below, suggest 3 meals
 the user could realistically make.
@@ -310,32 +325,40 @@ Respond ONLY with a valid JSON array of 3 meal objects. No preamble, no markdown
     try {
       final response = await Gemini.instance.prompt(parts: [Part.text(prompt)]);
       final raw = response?.output?.trim() ?? '[]';
+      debugPrint('📥 RAW getMealRecommendations response: $raw');
       final cleaned = _stripFences(raw);
- 
+      debugPrint('🧹 CLEANED getMealRecommendations: $cleaned');
+
       final List<dynamic> list = jsonDecode(cleaned) as List<dynamic>;
-      for (final item in list) {
-        final name = item.toString().trim();
-        if (name.isNotEmpty) _ingredients[name] = true;
-      }
- 
-      _state = DietFlowState.review;
-    } 
-    catch (e) {
-        debugPrint('🚨 GEMINI CRASH REPORT (getMealRecommendations): $e');
-        _errorMessage = 'Network connection failed. Please try again.';
-        _state = DietFlowState.error;
+
+      _meals = list
+          .map((item) => MealSuggestion.fromJson(item as Map<String, dynamic>))
+          .toList();
+
+      _state = DietFlowState.mealList;
+    } catch (e) {
+      debugPrint('🚨 GEMINI CRASH REPORT (getMealRecommendations): $e');
+      _errorMessage = _isRateLimitError(e)
+          ? 'Gemini is busy — wait 30 seconds then try again.'
+          : 'Meal generation failed: $e';
+      _state = DietFlowState.error;
+    } finally {
+      _isBusy = false;
     }
- 
+
     notifyListeners();
   }
  
   // ── Step 3: User picked one meal — generate matching instructions ─────────
   Future<void> selectMeal(MealSuggestion meal) async {
-    _isViewingSavedMeal = false; 
+    if (_isBusy) return;
+
+    _isBusy = true;
+    _isViewingSavedMeal = false;
     _state = DietFlowState.loading;
     _errorMessage = null;
     notifyListeners();
- 
+
     final prompt = '''
 You are a cooking assistant. The user wants to make this exact meal:
  
@@ -353,26 +376,31 @@ in the instructions (e.g. "season with salt and pepper").
 Respond ONLY with a valid JSON array of step strings, no numbering, no
 preamble, no markdown fences. Example: ["Heat oil in a pan over medium heat.", "..."]
 ''';
- 
+
     try {
-      // Text-only MUST use _textWithRetry to avoid the 503 Gateway Drop!
       final response = await Gemini.instance.prompt(parts: [Part.text(prompt)]);
-      
+
       final raw = response?.output?.trim() ?? '[]';
+      debugPrint('📥 RAW selectMeal response: $raw');
       final cleaned = _stripFences(raw);
- 
+      debugPrint('🧹 CLEANED selectMeal: $cleaned');
+
       final List<dynamic> rawSteps = jsonDecode(cleaned) as List<dynamic>;
       final steps = MealSuggestion.stepsFromJsonList(rawSteps);
- 
+
       _selectedMeal = meal.copyWith(steps: steps);
       _selectedMealLogged = false;
       _state = DietFlowState.mealDetail;
     } catch (e) {
-        debugPrint('🚨 GEMINI CRASH REPORT (selectMeal): $e');
-        _errorMessage = 'Network connection failed. Please try again.';
-        _state = DietFlowState.error;
+      debugPrint('🚨 GEMINI CRASH REPORT (selectMeal): $e');
+      _errorMessage = _isRateLimitError(e)
+          ? 'Gemini is busy — wait 30 seconds then try again.'
+          : 'Recipe generation failed: $e';
+      _state = DietFlowState.error;
+    } finally {
+      _isBusy = false;
     }
- 
+
     notifyListeners();
   }
  
@@ -415,15 +443,46 @@ preamble, no markdown fences. Example: ["Heat oil in a pan over medium heat.", "
     await _syncTodaysData(); 
     notifyListeners();
   }
-      // ── Helpers ────────────────────────────────────────────────────────────────
-  String _stripFences(String raw) {
-    final start = raw.indexOf('[');
-    final end = raw.lastIndexOf(']');
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
-    if (start != -1 && end != -1) {
-      return raw.substring(start, end + 1);
+  /// Returns true if the error is a transient Gemini rate-limit or overload.
+  bool _isRateLimitError(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('429') ||
+        s.contains('503') ||
+        s.contains('rate limit') ||
+        s.contains('quota') ||
+        s.contains('overloaded') ||
+        s.contains('unavailable');
+  }
+
+  /// Strips markdown fences and extracts the first JSON array or object from
+  /// a raw Gemini response string.  Handles these common Gemini quirks:
+  ///   - ```json ... ``` fences
+  ///   - Leading / trailing prose
+  ///   - Array wrapped inside an object  e.g. {"meals": [...]}
+  String _stripFences(String raw) {
+    // 1. Remove markdown code fences
+    String text = raw
+        .replaceAll(RegExp(r'```json\s*', caseSensitive: false), '')
+        .replaceAll('```', '')
+        .trim();
+
+    // 2. Try to grab the outermost JSON array first
+    final arrayStart = text.indexOf('[');
+    final arrayEnd = text.lastIndexOf(']');
+    if (arrayStart != -1 && arrayEnd > arrayStart) {
+      return text.substring(arrayStart, arrayEnd + 1);
     }
-    
-    return raw.trim();
+
+    // 3. Fall back to the outermost JSON object (Gemini sometimes wraps arrays)
+    final objStart = text.indexOf('{');
+    final objEnd = text.lastIndexOf('}');
+    if (objStart != -1 && objEnd > objStart) {
+      return text.substring(objStart, objEnd + 1);
+    }
+
+    // 4. Nothing found — return trimmed text and let jsonDecode throw clearly
+    return text;
   }
 }
