@@ -72,6 +72,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     
     // NOTE: If 'data' throws a compiler error, replace it with actual data from your provider 
     // e.g., Provider.of<HomeLogic>(context).yourData
+    
+    // NOTE: If 'data' throws a compiler error, replace it with actual data from your provider 
+    // e.g., Provider.of<HomeLogic>(context).yourData
     final List<Widget> pages = [
       HomeUI(data: data), 
       selectedWorkout == null
