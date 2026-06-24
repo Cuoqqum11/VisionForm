@@ -1,12 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_gemini/flutter_gemini.dart'; // Kept Gemini package
+
+import 'Logic/diet_logic.dart';
+import "Logic/home_logic.dart";
 import 'Logic/workout_logic.dart';
 import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
 import "UI/homeUI.dart";
-import "Logic/home_logic.dart";
 
-void main() {
+Future<void> main() async {
+  // Ensure Flutter bindings are initialized before running the app
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Directly passing the API key string to completely bypass flutter_dotenv
+  const String apiKey = 'KEY';
+
+  Gemini.init(
+    apiKey: apiKey,
+  );
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => WorkoutProvide(),
@@ -52,8 +65,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedWorkout = context.watch<WorkoutProvide>().selectedWorkout;
+    
+    // NOTE: If 'data' throws a compiler error, replace it with actual data from your provider 
+    // e.g., Provider.of<HomeLogic>(context).yourData
     final List<Widget> pages = [
-      const Center(child: Text("Home Screen", style: TextStyle(fontSize: 24))),
+      HomeUI(data: data), 
       selectedWorkout == null
           ? WorkoutListScreen(
               onWorkoutSelected: () {
