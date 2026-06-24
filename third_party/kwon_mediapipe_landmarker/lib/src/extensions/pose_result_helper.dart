@@ -1,8 +1,11 @@
 import 'dart:math';
+import 'package:flutter/material.dart';
 
 import '../result.dart';
 import '../constants/pose_landmark_index.dart';
 import '../landmark.dart';
+
+
 /// PoseResult 편의 확장
 extension PoseResultHelper on PoseResult {
   /// 어깨 대칭 점수 (0.0~1.0, 수평일수록 높음)
@@ -245,6 +248,35 @@ extension PoseResultHelper on PoseResult {
     return alignment <= offset;
   }
 
+  double get squatKneeAngle {
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftKnee = landmarks[PoseLandmarkIndex.leftKnee];
+    final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final rightKnee = landmarks[PoseLandmarkIndex.rightKnee];
+    final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+    if ((leftKnee.visibility ?? 0) < 0.5 || (rightKnee.visibility ?? 0) < 0.5) return 0;
+
+    final leftAngle = getAngleBetweenJoints(leftHip, leftKnee, leftAnkle);
+    final rightAngle = getAngleBetweenJoints(rightHip, rightKnee, rightAnkle);
+
+    return (leftAngle + rightAngle) / 2;
+  }
+
+  /// 스쿼트 내려간 자세 감지 (무릎 각도 100도 이하)
+  bool get isSquatDownPosition {
+    // 90 is perfectly parallel. 100 is a forgiving but decent depth.
+    return squatKneeAngle > 0 && squatKneeAngle < 100;
+  }
+
+  /// 스쿼트 일어선 자세 감지 (무릎 각도 160도 이상)
+  bool get isSquatUpPosition {
+    // 180 is fully standing straight.
+    return squatKneeAngle > 160;
+  }
+
   /// 세 관절 사이의 각도 계산 (도 단위)
   ///
   /// joint1 -> joint2 -> joint3 순서로 각도 계산
@@ -378,6 +410,25 @@ extension PoseResultHelper on PoseResult {
     return (leftAngle + rightAngle) / 2;
   }
 
+  double get pushupBodyAngle {
+    final leftShoulder = landmarks[PoseLandmarkIndex.leftShoulder];
+    final leftHip = landmarks[PoseLandmarkIndex.leftHip];
+    final leftAnkle = landmarks[PoseLandmarkIndex.leftAnkle];
+
+    final rightShoulder = landmarks[PoseLandmarkIndex.rightShoulder];
+    final rightHip = landmarks[PoseLandmarkIndex.rightHip];
+    final rightAnkle = landmarks[PoseLandmarkIndex.rightAnkle];
+
+    // 관절이 보이지 않으면 180(정상)으로 간주하여 잘못된 페널티 방지
+    if ((leftHip.visibility ?? 0) < 0.5 || (rightHip.visibility ?? 0) < 0.5) {
+      return 180.0; 
+    }
+
+    final leftAngle = getAngleBetweenJoints(leftShoulder, leftHip, leftAnkle);
+    final rightAngle = getAngleBetweenJoints(rightShoulder, rightHip, rightAnkle);
+
+    return (leftAngle + rightAngle) / 2;
+  }
   /// 푸쉬업 팔꿈치 벌어짐 검증 (45도 유지)
   ///
   /// targetAngle: 이상적인 각도 (기본 45도 - 화살표 모양)
@@ -468,4 +519,75 @@ extension PoseResultHelper on PoseResult {
 
     return situpTorsoAngle >= 60;
   }
+
+  //pull up related
+double getAngleFromCoords(double x1, double y1, double x2, double y2, double x3, double y3) {
+  double radians = atan2(y3 - y2, x3 - x2) - atan2(y1 - y2, x1 - x2);
+  double angle = (radians * 180.0 / pi).abs();
+  
+  if (angle > 180.0) {
+    angle = 360.0 - angle;
+  }
+  return angle;
+}  
+double getAngle(Landmark first, Landmark middle, Landmark last) {
+  double radians = atan2(last.y - middle.y, last.x - middle.x) -
+                   atan2(first.y - middle.y, first.x - middle.x);
+  double angle = (radians * 180.0 / pi).abs();
+  
+  if (angle > 180.0) {
+    angle = 360.0 - angle;
+  }
+  return angle;
 }
+  
+  // --- THE MISSING BRIDGE: JOINT MAPPING ---
+  Landmark get nose => landmarks[PoseLandmarkIndex.nose];
+  Landmark get leftShoulder => landmarks[PoseLandmarkIndex.leftShoulder];
+  Landmark get rightShoulder => landmarks[PoseLandmarkIndex.rightShoulder];
+  Landmark get leftElbow => landmarks[PoseLandmarkIndex.leftElbow];
+  Landmark get rightElbow => landmarks[PoseLandmarkIndex.rightElbow];
+  Landmark get leftWrist => landmarks[PoseLandmarkIndex.leftWrist];
+  Landmark get rightWrist => landmarks[PoseLandmarkIndex.rightWrist];
+  Landmark get leftHip => landmarks[PoseLandmarkIndex.leftHip];
+  Landmark get rightHip => landmarks[PoseLandmarkIndex.rightHip];
+
+  // --- PULL-UP LOGIC ---
+  
+  // 1. Grip Width Validation (>1.4x shoulder width)
+  bool get isPullupGripWideEnough {
+    final shoulderWidth = (leftShoulder.x - rightShoulder.x).abs();
+    final gripWidth = (leftWrist.x - rightWrist.x).abs();
+    if (shoulderWidth == 0) return false; 
+    return gripWidth > (shoulderWidth * 1.4);
+  }
+
+  // 2. Arm Extension Logic
+  double get pullupAvgArmAngle {
+    // These will now successfully call the global getAngle function at the top of the file!
+    final leftArmAngle = getAngle(leftShoulder, leftElbow, leftWrist);
+    final rightArmAngle = getAngle(rightShoulder, rightElbow, rightWrist);
+    return (leftArmAngle + rightArmAngle) / 2;
+  }
+
+  double get pullupTorsoArchAngle {
+
+    return getAngleFromCoords(
+      leftHip.x, leftHip.y - 0.5,    // Point 1 (x1, y1)
+      leftHip.x, leftHip.y,          // Point 2 (x2, y2)
+      leftShoulder.x, leftShoulder.y // Point 3 (x3, y3)
+    );
+  }
+
+  //
+  // 4. State Definitions
+  bool get isHeadOverBar {
+    final wristYLevel = (leftWrist.y + rightWrist.y) / 2;
+    return nose.y < wristYLevel;
+  }
+
+  bool get isPullupDownPosition {
+    return pullupAvgArmAngle > 150;
+  }
+}
+

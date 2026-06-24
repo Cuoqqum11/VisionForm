@@ -1,26 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
+
+import 'Logic/diet_logic.dart';
+import "Logic/home_logic.dart";
 import 'Logic/workout_logic.dart';
 import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
 import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
-import "Logic/home_logic.dart";
-import 'package:flutter_gemini/flutter_gemini.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // required before dotenv
 
-  await dotenv.load(fileName: '.env');
+Future<void> main() async {
+  // Ensure Flutter bindings are initialized before loading anything
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load the secret .env file
+  await dotenv.load(fileName: ".env");
 
-  Gemini.init(apiKey: dotenv.env['GEMINI_API_KEY'] ?? '');
+  final apiKey = dotenv.env['KEY'] ?? '';
+
+  Gemini.init(
+    apiKey: apiKey,
+  );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => WorkoutProvide(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => WorkoutProvide()),
+        ChangeNotifierProvider(create: (context) => DietLogic()),
+      ],
       child: const MyApp(),
-    ),
+    ),    
   );
 }
 

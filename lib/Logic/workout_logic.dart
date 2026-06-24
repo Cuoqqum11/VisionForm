@@ -59,7 +59,7 @@ class WorkoutProvide extends ChangeNotifier {
             ],
           ),
           Workout(
-            name: 'pullups',
+            name: 'Pull-ups',
             description: 'Great for back and biceps.',
             imageUrl: 'assets/images/pullups.jpg',
             duration: 30,

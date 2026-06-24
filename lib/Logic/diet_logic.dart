@@ -9,15 +9,59 @@ class DietLogic extends ChangeNotifier {
   // ── Profile ──────────────────────────────────────────────────────────────
   final UserDietProfile profile = UserDietProfile();
  
-  // ── Flow state ───────────────────────────────────────────────────────────
+  // ── Flow state ─────────────────────────────────────────────────────────
   DietFlowState _state = DietFlowState.entry;
   DietFlowState get state => _state;
  
+  bool _isViewingSavedMeal = false; // Add this tracking flag
+
+
+  // ── Today's Macros (For Home Screen) ───────────────────────────────────
+  int _todaysCalories = 0;
+  int _todaysProtein = 0;
+  int _todaysCarbs = 0;
+  int _todaysFat = 0;
+
+  int get todaysCalories => _todaysCalories;
+  int get todaysProtein => _todaysProtein;
+  int get todaysCarbs => _todaysCarbs;
+  int get todaysFat => _todaysFat;
+
+  Future<void> clearTodaysLogs() async {
+    final todaysLogs = await DietDatabaseService.instance.getTodaysLogs();
+    for (var log in todaysLogs) {
+      if (log.id != null) {
+        await DietDatabaseService.instance.deleteLog(log.id!);
+      }
+    }
+    _selectedMealLogged = false;
+    await _syncTodaysData();
+  }
+  
+  Future<void> initialize() async {
+    await _syncTodaysData();
+  }
+
+  Future<void> _syncTodaysData() async {
+    final todaysLogs = await DietDatabaseService.instance.getTodaysLogs();
+    _loggedSavedMealNames.clear();
+    for (var log in todaysLogs) {
+      _loggedSavedMealNames.add(log.mealName);
+    }
+
+    final totals = await DietDatabaseService.instance.getTodaysTotals();
+    _todaysCalories = totals['calories'] ?? 0;
+    _todaysProtein = totals['protein'] ?? 0;
+    _todaysCarbs = totals['carbs'] ?? 0;
+    _todaysFat = totals['fat'] ?? 0;
+
+    notifyListeners();
+  }
+  
   // ── Ingredient review ────────────────────────────────────────────────────
   XFile? _pickedImage;
   XFile? get pickedImage => _pickedImage;
  
-  // All detected ingredients; key = name, value = checked (included)
   final Map<String, bool> _ingredients = {};
   List<String> get allIngredients => _ingredients.keys.toList();
   List<String> get confirmedIngredients =>
@@ -67,6 +111,13 @@ class DietLogic extends ChangeNotifier {
       protein: 24,
       carbs: 52,
       fat: 12,
+      usedIngredients: ['rice', 'eggs', 'peas', 'carrots', 'soy sauce'],
+      steps: [
+        MealStep(stepNumber: 1, instruction: 'Heat a lightly oiled skillet or wok over medium-high heat.'),
+        MealStep(stepNumber: 2, instruction: 'Scramble the eggs in the pan, then remove and set aside.'),
+        MealStep(stepNumber: 3, instruction: 'Add veggies to the pan and sauté until tender.'),
+        MealStep(stepNumber: 4, instruction: 'Stir in the cooked rice, eggs, and soy sauce. Toss well.')
+      ]
     ),
     const SavedMeal(
       name: 'Chicken bowl',
@@ -75,25 +126,22 @@ class DietLogic extends ChangeNotifier {
       protein: 38,
       carbs: 44,
       fat: 16,
-    ),
-    const SavedMeal(
-      name: 'Greek salad',
-      tag: 'Low carb',
-      calories: 290,
-      protein: 12,
-      carbs: 18,
-      fat: 19,
+      usedIngredients: ['chicken breast', 'brown rice', 'broccoli', 'teriyaki sauce'],
+      steps: [
+        MealStep(stepNumber: 1, instruction: 'Cook the brown rice according to package instructions.'),
+        MealStep(stepNumber: 2, instruction: 'Chop chicken into bite-sized pieces and cook in a skillet until golden brown.'),
+        MealStep(stepNumber: 3, instruction: 'Steam the broccoli until bright green and tender-crisp.'),
+        MealStep(stepNumber: 4, instruction: 'Assemble the bowl: rice on the bottom, topped with chicken and broccoli. Drizzle with sauce.')
+      ]
     ),
   ];
   List<SavedMeal> get savedMeals => List.unmodifiable(_savedMeals);
  
-  // Tracks which saved meals have already been logged today, just so the
-  // entry screen can show a quick "Logged" state instead of letting the
-  // user spam-tap duplicate entries by accident.
+  // Tracks which saved meals have already been logged today
   final Set<String> _loggedSavedMealNames = {};
   bool isSavedMealLoggedToday(String name) =>
       _loggedSavedMealNames.contains(name);
- 
+
   void saveMeal(MealSuggestion meal) {
     final already = _savedMeals.any((s) => s.name == meal.name);
     if (!already) {
@@ -106,23 +154,38 @@ class DietLogic extends ChangeNotifier {
           protein: meal.macros.protein,
           carbs: meal.macros.carbs,
           fat: meal.macros.fat,
+          usedIngredients: meal.usedIngredients,
+          steps: meal.steps
         ),
       );
       notifyListeners();
     }
   }
+
+  void viewSavedMeal(SavedMeal saved) {
+    _isViewingSavedMeal = true; // Set flag when entering from main menu    
+    _selectedMeal = MealSuggestion(
+      name: saved.name,
+      tag: saved.tag,
+      calories: saved.calories,
+      macros: MacroInfo(protein: saved.protein, carbs: saved.carbs, fat: saved.fat),
+      usedIngredients: saved.usedIngredients,
+      steps: saved.steps,
+    );
+    _selectedMealLogged = isSavedMealLoggedToday(saved.name);
+    _state = DietFlowState.mealDetail;
+    notifyListeners();
+  }
  
-  // ── Profile setters ───────────────────────────────────────────────────────
   void setGoal(String goal) {
     profile.goal = goal;
     notifyListeners();
   }
  
-  void setDietType(String dietType) {
-    profile.dietType = dietType;
-    notifyListeners();
-  }
- 
+void setDietType(String dietType) {
+  profile.dietType = dietType;
+  notifyListeners();
+}
   // ── Navigation helpers ────────────────────────────────────────────────────
   void goToEntry() {
     _state = DietFlowState.entry;
@@ -132,12 +195,18 @@ class DietLogic extends ChangeNotifier {
     _selectedMeal = null;
     _selectedMealLogged = false;
     _errorMessage = null;
+    _isViewingSavedMeal = false; // Reset flag
     notifyListeners();
   }
  
-  /// Back from the meal-detail screen to the meal list, without re-querying
-  /// Gemini — so the user can try a different one of the 3 suggestions.
+  /// Back from the meal-detail screen. 
+  /// Determines if we go back to the generated list or the home entry screen.
   void backToMealList() {
+    if (_meals.isEmpty || _isViewingSavedMeal) {
+      _isViewingSavedMeal = false;
+      goToEntry();
+      return;
+    }
     _state = DietFlowState.mealList;
     _selectedMeal = null;
     _selectedMealLogged = false;
@@ -149,10 +218,10 @@ class DietLogic extends ChangeNotifier {
     final picker = ImagePicker();
     final XFile? file = await picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      imageQuality: 80,
+      imageQuality: 70,
       maxWidth: 1024,
     );
-    if (file == null) return; // user cancelled
+    if (file == null) return; 
  
     _pickedImage = file;
     _ingredients.clear();
@@ -178,7 +247,9 @@ class DietLogic extends ChangeNotifier {
         ),
       ];
  
+      // Multi-modal uses _promptWithRetry
       final response = await Gemini.instance.prompt(parts: parts);
+      
       final raw = response?.output?.trim() ?? '[]';
       final cleaned = _stripFences(raw);
  
@@ -190,7 +261,7 @@ class DietLogic extends ChangeNotifier {
  
       _state = DietFlowState.review;
     } catch (e) {
-      // Fallback: go to review with an empty list so the user can add manually
+      debugPrint('🚨 GEMINI CRASH REPORT (scanFridge): $e');
       _state = DietFlowState.review;
     }
  
@@ -242,14 +313,17 @@ Respond ONLY with a valid JSON array of 3 meal objects. No preamble, no markdown
       final cleaned = _stripFences(raw);
  
       final List<dynamic> list = jsonDecode(cleaned) as List<dynamic>;
-      _meals = list
-          .map((json) => MealSuggestion.fromJson(json as Map<String, dynamic>))
-          .toList();
+      for (final item in list) {
+        final name = item.toString().trim();
+        if (name.isNotEmpty) _ingredients[name] = true;
+      }
  
-      _state = DietFlowState.mealList;
-    } catch (e) {
-      _errorMessage = 'Could not generate meals. Please try again.';
-      _state = DietFlowState.error;
+      _state = DietFlowState.review;
+    } 
+    catch (e) {
+        debugPrint('🚨 GEMINI CRASH REPORT (getMealRecommendations): $e');
+        _errorMessage = 'Network connection failed. Please try again.';
+        _state = DietFlowState.error;
     }
  
     notifyListeners();
@@ -257,6 +331,7 @@ Respond ONLY with a valid JSON array of 3 meal objects. No preamble, no markdown
  
   // ── Step 3: User picked one meal — generate matching instructions ─────────
   Future<void> selectMeal(MealSuggestion meal) async {
+    _isViewingSavedMeal = false; 
     _state = DietFlowState.loading;
     _errorMessage = null;
     notifyListeners();
@@ -280,7 +355,9 @@ preamble, no markdown fences. Example: ["Heat oil in a pan over medium heat.", "
 ''';
  
     try {
+      // Text-only MUST use _textWithRetry to avoid the 503 Gateway Drop!
       final response = await Gemini.instance.prompt(parts: [Part.text(prompt)]);
+      
       final raw = response?.output?.trim() ?? '[]';
       final cleaned = _stripFences(raw);
  
@@ -291,8 +368,9 @@ preamble, no markdown fences. Example: ["Heat oil in a pan over medium heat.", "
       _selectedMealLogged = false;
       _state = DietFlowState.mealDetail;
     } catch (e) {
-      _errorMessage = 'Could not generate instructions. Please try again.';
-      _state = DietFlowState.error;
+        debugPrint('🚨 GEMINI CRASH REPORT (selectMeal): $e');
+        _errorMessage = 'Network connection failed. Please try again.';
+        _state = DietFlowState.error;
     }
  
     notifyListeners();
@@ -317,10 +395,10 @@ preamble, no markdown fences. Example: ["Heat oil in a pan over medium heat.", "
     );
  
     _selectedMealLogged = true;
+    await _syncTodaysData(); 
     notifyListeners();
   }
  
-  /// Log a saved meal directly — it already has macros, so no AI call needed.
   Future<void> finalizeSavedMeal(SavedMeal meal) async {
     await DietDatabaseService.instance.insertLog(
       DietLogEntry(
@@ -334,16 +412,18 @@ preamble, no markdown fences. Example: ["Heat oil in a pan over medium heat.", "
         loggedAtMillis: DateTime.now().millisecondsSinceEpoch,
       ),
     );
- 
-    _loggedSavedMealNames.add(meal.name);
+    await _syncTodaysData(); 
     notifyListeners();
   }
- 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+      // ── Helpers ────────────────────────────────────────────────────────────────
   String _stripFences(String raw) {
-    return raw
-        .replaceAll(RegExp(r'^```json?\s*', multiLine: true), '')
-        .replaceAll(RegExp(r'```$', multiLine: true), '')
-        .trim();
+    final start = raw.indexOf('[');
+    final end = raw.lastIndexOf(']');
+
+    if (start != -1 && end != -1) {
+      return raw.substring(start, end + 1);
+    }
+    
+    return raw.trim();
   }
 }
