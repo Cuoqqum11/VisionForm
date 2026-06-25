@@ -9,17 +9,13 @@ import 'UI/workoutUI.dart';
 import 'UI/workout_detail_screen.dart';
 import 'UI/diet_UI.dart';
 import "UI/homeUI.dart";
-
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Added dotenv package
 Future<void> main() async {
   // Ensure Flutter bindings are initialized before running the app
   WidgetsFlutterBinding.ensureInitialized();
   
   // Directly passing the API key string to completely bypass flutter_dotenv
-  const String apiKey = 'AQ.Ab8RN6J9IZm8lUwmQ9N9sef7NGCUVjhjznLgEk2YIQBwGzYoJg';
-
-  Gemini.init(
-    apiKey: apiKey,
-  );
+  await dotenv.load(fileName: ".env"); 
 
   runApp(
     MultiProvider(

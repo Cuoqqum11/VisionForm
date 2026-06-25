@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// A lightweight service for calling the Groq inference API.
 ///
 /// Groq is used as a fast free fallback when Gemini is rate-limited (429)
@@ -13,15 +13,12 @@ import 'package:http/http.dart' as http;
 class GroqService {
   GroqService._();
   static final GroqService instance = GroqService._();
-
   // ── Configuration ──────────────────────────────────────────────────────────
 
   /// Paste your Groq API key here.
   /// Get a free key at https://console.groq.com
-  static const String _apiKey = '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';
-
-  static const String _endpoint =
-      'https://api.groq.com/openai/v1/chat/completions';
+  final String _apiKey = dotenv.get('KEY') ?? '';
+  static const String _endpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
   /// Current recommended model. openai/gpt-oss-20b replaced llama3-8b-8192
   /// which was decommissioned on August 30 2025.
