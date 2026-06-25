@@ -97,7 +97,6 @@ To ensure high system availability and zero downtime during performance evaluati
    ```bash
    git clone https://github.com/Cuoqqum11/VisionForm.git
    cd VisionForm
-   git checkout Mimi
    ```
 
 2. **Retrieve all package tracking configurations:**
