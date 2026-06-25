@@ -115,7 +115,7 @@ To ensure high system availability and zero downtime during performance evaluati
      ```env
      KEY=your_groq_api_key_here
      ```
-
+     Access https://console.groq.com/keys to get your groq API Key
 4. **Compile and launch the application directly onto your test device:**
    ```bash
    flutter run
