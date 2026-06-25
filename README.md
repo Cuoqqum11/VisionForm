@@ -1,13 +1,4 @@
-```markdown
 # physICtecK
-
-![Flutter](https://img.shields.io/badge/Flutter-3.22.0-02569B?style=for-the-badge&logo=flutter&logoColor=white)
-![Dart](https://img.shields.io/badge/Dart-3.4.0-0175C2?style=for-the-badge&logo=dart&logoColor=white)
-![Google Gemini](https://img.shields.io/badge/Gemini_AI-1.5_Flash-4285F4?style=for-the-badge&logo=googlegemini&logoColor=white)
-![MediaPipe](https://img.shields.io/badge/MediaPipe-Pose-29B6F6?style=for-the-badge&logo=google&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-3.x-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Provider](https://img.shields.io/badge/Provider-6.x-0175C2?style=for-the-badge)
-![FL Chart](https://img.shields.io/badge/FL_Chart-0.68.0-FF6600?style=for-the-badge)
 
 An advanced, real-time AI fitness and nutrition companion engineered to optimize workout form precision and personalize diet plan generation. Powered by high-speed device-level computer vision via MediaPipe for real-time skeletal orientation mapping alongside a resilient, multi-API AI engine that orchestrates dynamic meal recommendations. This application represents team **VisionForm's** exploration of combining cutting-edge edge computation with intelligent cloud-based LLM orchestration to provide a highly stable, interactive, and fault-tolerant health tracking platform.
 
