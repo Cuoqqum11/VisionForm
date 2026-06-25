@@ -777,7 +777,6 @@ class _MealListScreen extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 14),
                 itemBuilder: (_, i) => _MealOptionCard(
                   meal: logic.meals[i],
-                  onSave: () => logic.saveMeal(logic.meals[i]),
                   onMakeThis: () => logic.selectMeal(logic.meals[i]),
                 ),
               ),
@@ -813,28 +812,19 @@ class _InfoPill extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 // Meal option card — shown in the meal list (no steps yet)
 // ═════════════════════════════════════════════════════════════════════════════
-class _MealOptionCard extends StatefulWidget {
+class _MealOptionCard extends StatelessWidget {
   final MealSuggestion meal;
-  final VoidCallback onSave;
   final VoidCallback onMakeThis;
- 
+
   const _MealOptionCard({
     required this.meal,
-    required this.onSave,
     required this.onMakeThis,
   });
- 
-  @override
-  State<_MealOptionCard> createState() => _MealOptionCardState();
-}
- 
-class _MealOptionCardState extends State<_MealOptionCard> {
-  bool _saved = false;
- 
+
   @override
   Widget build(BuildContext context) {
-    final tagColor = kTagColors[widget.meal.tag] ?? _C.gold;
- 
+    final tagColor = kTagColors[meal.tag] ?? _C.gold;
+
     return Container(
       decoration: BoxDecoration(
         color: _C.card,
@@ -844,7 +834,7 @@ class _MealOptionCardState extends State<_MealOptionCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header: name + tag + save ───────────────────────────────
+          // ── Header: name + tag (Save button removed!) ─────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
             child: Row(
@@ -855,92 +845,67 @@ class _MealOptionCardState extends State<_MealOptionCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.meal.name,
+                        meal.name,
                         style: const TextStyle(
                             color: _C.white,
                             fontSize: 18,
                             fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 6),
-                      _TagChip(label: widget.meal.tag, color: tagColor),
+                      _TagChip(label: meal.tag, color: tagColor),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    if (!_saved) {
-                      widget.onSave();
-                      setState(() => _saved = true);
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: _saved ? _C.goldDim : _C.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: _saved ? _C.gold : _C.white38, width: 1),
-                    ),
-                    child: Icon(
-                      _saved ? Icons.bookmark : Icons.bookmark_outline,
-                      color: _saved ? _C.gold : _C.white38,
-                      size: 18,
-                    ),
                   ),
                 ),
               ],
             ),
           ),
- 
+
           const Divider(color: Color(0xFF2D2F36), height: 1),
- 
-          // ── Macros row ────────────────────────────────────────────────
+
+          // ── Macros row ────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 _MacroTile(
                   label: 'Calories',
-                  value: '${widget.meal.calories}',
+                  value: '${meal.calories}',
                   unit: 'kcal',
                   color: _C.gold,
                 ),
                 _VerticalDivider(),
                 _MacroTile(
                   label: 'Protein',
-                  value: '${widget.meal.macros.protein}',
+                  value: '${meal.macros.protein}',
                   unit: 'g',
                   color: const Color(0xFFD4845A),
                 ),
                 _VerticalDivider(),
                 _MacroTile(
                   label: 'Carbs',
-                  value: '${widget.meal.macros.carbs}',
+                  value: '${meal.macros.carbs}',
                   unit: 'g',
                   color: const Color(0xFF5A8EA0),
                 ),
                 _VerticalDivider(),
                 _MacroTile(
                   label: 'Fat',
-                  value: '${widget.meal.macros.fat}',
+                  value: '${meal.macros.fat}',
                   unit: 'g',
                   color: const Color(0xFF9E7A5A),
                 ),
               ],
             ),
           ),
- 
-          // ── Ingredients used ──────────────────────────────────────────
-          if (widget.meal.usedIngredients.isNotEmpty)
+
+          // ── Ingredients used ──────────────────────────────────────
+          if (meal.usedIngredients.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Wrap(
                 spacing: 6,
                 runSpacing: 4,
-                children: widget.meal.usedIngredients
+                children: meal.usedIngredients
                     .map((ing) => Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
@@ -957,14 +922,14 @@ class _MealOptionCardState extends State<_MealOptionCard> {
                     .toList(),
               ),
             ),
- 
-          // ── Make this meal button ─────────────────────────────────────
+
+          // ── Make this meal button ─────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: widget.onMakeThis,
+                onPressed: onMakeThis,
                 icon: const Icon(Icons.restaurant_menu,
                     color: _C.gold, size: 16),
                 label: const Text(
@@ -990,23 +955,44 @@ class _MealOptionCardState extends State<_MealOptionCard> {
 }
  
 // ═════════════════════════════════════════════════════════════════════════════
-// STATE 4 — Meal detail (one chosen meal, instructions + Log button)
+// STATE 4 — Meal detail (one chosen meal, instructions + Log + Save)
 // ═════════════════════════════════════════════════════════════════════════════
-class _MealDetailScreen extends StatelessWidget {
+class _MealDetailScreen extends StatefulWidget {
   const _MealDetailScreen({super.key});
- 
+
+  @override
+  State<_MealDetailScreen> createState() => _MealDetailScreenState();
+}
+
+class _MealDetailScreenState extends State<_MealDetailScreen> {
+  bool _saved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check if the meal is already saved when the screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final logic = context.read<DietLogic>();
+      final meal = logic.selectedMeal;
+      if (meal != null) {
+        setState(() {
+          _saved = logic.savedMeals.any((s) => s.name == meal.name);
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final logic = context.watch<DietLogic>();
     final meal = logic.selectedMeal;
- 
+
     if (meal == null) {
-      // Shouldn't happen, but guards against a null state mid-transition.
       return const Scaffold(backgroundColor: _C.bg, body: SizedBox());
     }
- 
+
     final tagColor = kTagColors[meal.tag] ?? _C.gold;
- 
+
     return Scaffold(
       backgroundColor: _C.bg,
       body: SafeArea(
@@ -1031,11 +1017,36 @@ class _MealDetailScreen extends StatelessWidget {
                           fontWeight: FontWeight.bold),
                     ),
                   ),
-                  const SizedBox(width: 40),
+                  // ── NEW: Save Button in the App Bar ─────────────────
+                  GestureDetector(
+                    onTap: () {
+                      if (!_saved) {
+                        logic.saveMeal(meal); // Now it has steps!
+                        setState(() => _saved = true);
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _saved ? _C.goldDim : _C.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: _saved ? _C.gold : _C.white38, width: 1),
+                      ),
+                      child: Icon(
+                        _saved ? Icons.bookmark : Icons.bookmark_outline,
+                        color: _saved ? _C.gold : _C.white38,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                 ],
               ),
             ),
- 
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1066,9 +1077,9 @@ class _MealDetailScreen extends StatelessWidget {
                           ],
                         ),
                       ),
- 
+
                       const Divider(color: Color(0xFF2D2F36), height: 1),
- 
+
                       // ── Macros row ────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -1105,7 +1116,7 @@ class _MealDetailScreen extends StatelessWidget {
                           ],
                         ),
                       ),
- 
+
                       // ── Ingredients used ──────────────────────────────
                       if (meal.usedIngredients.isNotEmpty)
                         Padding(
@@ -1133,9 +1144,9 @@ class _MealDetailScreen extends StatelessWidget {
                                 .toList(),
                           ),
                         ),
- 
+
                       const Divider(color: Color(0xFF2D2F36), height: 1),
- 
+
                       // ── How to make it ────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 13, 16, 4),
@@ -1154,7 +1165,7 @@ class _MealDetailScreen extends StatelessWidget {
                           ],
                         ),
                       ),
- 
+
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                         child: Column(
@@ -1168,8 +1179,8 @@ class _MealDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
- 
-            // ── Log this meal button ────────────────────────────────────
+
+            // ── Log this meal button ────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: SizedBox(

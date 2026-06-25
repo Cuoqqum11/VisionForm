@@ -15,7 +15,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Directly passing the API key string to completely bypass flutter_dotenv
-  const String apiKey = 'KEY';
+  const String apiKey = 'AQ.Ab8RN6J9IZm8lUwmQ9N9sef7NGCUVjhjznLgEk2YIQBwGzYoJg';
 
   Gemini.init(
     apiKey: apiKey,
