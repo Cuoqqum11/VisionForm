@@ -17,13 +17,12 @@ class _YearlyProgressChartState extends State<YearlyProgressChart> {
   bool _isLoading = true;
 
   @override
-    void initState() {
+  void initState() {
     super.initState();
     _loadRealData();
   }
   
   Future<void> _loadRealData() async {
-    // Call our new Singleton database helper
     final dbHelper = DatabaseHelper();
     final realData = await dbHelper.getYearlyChartData();
 
@@ -34,7 +33,6 @@ class _YearlyProgressChartState extends State<YearlyProgressChart> {
       }
     }
 
-    // Update the UI with the real SQLite data!
     if (mounted) {
       setState(() {
         _data = realData;
@@ -46,51 +44,26 @@ class _YearlyProgressChartState extends State<YearlyProgressChart> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. DYNAMIC SCREEN CALCULATIONS
-    // Get the absolute physical width of the user's device screen
-    final deviceWidth = MediaQuery.of(context).size.width;
-    
-    // Account for the padding around the chart container (left: 8, right: 16)
-    // plus any page margins so our math is pixel-perfect.
-    final availableWidth = deviceWidth - 48; 
-
-    // Dynamically calculate how wide one day needs to be so exactly 
-    // 30 days fit inside the viewport window.
-    final dayWidth = availableWidth / 30; 
-    
-    // Total width of the canvas is now perfectly scaled to the device!
-    final chartWidth = _data.length * dayWidth;
+    if (_isLoading) {
+      return const SizedBox(height: 300, child: Center(child: CircularProgressIndicator(color: Colors.orange)));
+    }
 
     return Container(
-      height: 380,
-      padding: const EdgeInsets.only(top: 45, bottom: 12, left: 8, right: 16),
+      height: 300,
+      width: double.infinity, // Ensures it doesn't overflow
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1F25), 
+        color: const Color(0xFF1E1F25),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 16.0, bottom: 24.0),
-            child: Text(
-              'Monthly Progress',
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ),
+          const Text('Monthly Progress', 
+            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              // This automatically scrolls the chart to the very end (today) 
-              // when it loads, so the user sees their most recent data first!
-              reverse: true, 
-              child: SizedBox(
-                width: chartWidth, 
-                child: LineChart(
-                  _mainChartData(),
-                ),
-              ),
-            ),
+            child: LineChart(_mainChartData()),
           ),
         ],
       ),
@@ -101,127 +74,60 @@ class _YearlyProgressChartState extends State<YearlyProgressChart> {
     return LineChartData(
       minY: 0,
       maxY: 100,
-      minX: 0,
-      maxX: _data.length.toDouble() - 1,
+      maxX: _data.isEmpty ? 1 : (_data.length - 1).toDouble(),
       gridData: FlGridData(
-        show: true,
-        drawVerticalLine: false,
-        horizontalInterval: 25,
+        show: true, 
+        drawVerticalLine: false, 
+        horizontalInterval: 50,
         getDrawingHorizontalLine: (value) => FlLine(color: Colors.white10, strokeWidth: 1),
       ),
+      borderData: FlBorderData(show: false),
       titlesData: FlTitlesData(
-        show: true,
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true, 
+            interval: 50, 
+            reservedSize: 30,
+            getTitlesWidget: (value, meta) => Text('${value.toInt()}%', 
+              style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          ),
+        ),
         bottomTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
-            reservedSize: 30,
-            interval: 30, // Shows a month indicator roughly every 30 days
+            interval: _data.length > 30 ? 30 : 10,
             getTitlesWidget: (value, meta) {
-              if (value.toInt() >= _data.length || value.toInt() < 0) return const SizedBox.shrink();
-              final date = _data[value.toInt()].date;
-              
-              // Only show the label on the first day of the month to keep the bottom clean
-              if (date.day == 1 || value == 0) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    DateFormat('MMM').format(date), 
-                    style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)
-                  ),
-                );
+              if (_data.isEmpty) return const SizedBox.shrink();
+              final index = value.toInt();
+              if (index >= 0 && index < _data.length) {
+                return Text(DateFormat('MMM').format(_data[index].date), 
+                  style: const TextStyle(color: Colors.white38, fontSize: 10));
               }
               return const SizedBox.shrink();
             },
           ),
         ),
-        leftTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            interval: 25,
-            reservedSize: 40,
-            getTitlesWidget: (value, meta) {
-              return Text('${value.toInt()}%', style: const TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold));
-            },
-          ),
-        ),
-        rightTitles: AxisTitles(
-          sideTitles: SideTitles(
-            showTitles: true,
-            interval: 25,
-            reservedSize: 40,
-            getTitlesWidget: (value, meta) {
-              final actualReps = (value * (_maxReps / 100)).round();
-              if (value == 0) return const SizedBox.shrink();
-              return Text('$actualReps', style: const TextStyle(color: Colors.cyan, fontSize: 11, fontWeight: FontWeight.bold));
-            },
-          ),
-        ),
-      ),
-      borderData: FlBorderData(show: false),
-      lineTouchData: LineTouchData(
-        // Makes the touch area larger so it's easier to tap with a thumb
-        touchSpotThreshold: 20, 
-        touchTooltipData: LineTouchTooltipData(
-          // THE MAGIC FIXES: Force the tooltip to stay inside the box!
-          fitInsideHorizontally: true,
-          fitInsideVertically: true, 
-          
-          // UI Polish: Make the box look sleek and stay close to the line
-          tooltipMargin: 8, 
-          tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          
-          getTooltipItems: (touchedSpots) {
-            if (touchedSpots.isEmpty) return [];
-            
-            final dayIndex = touchedSpots.first.x.toInt();
-            final date = _data[dayIndex].date;
-            final dateStr = DateFormat('MMM d, yyyy').format(date);
-            
-            return touchedSpots.map((spot) {
-              if (spot.barIndex == 0) {
-                return LineTooltipItem(
-                  '$dateStr\nScore: ${spot.y.toStringAsFixed(1)}%',
-                  const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
-                );
-              } else {
-                final actualReps = (spot.y * (_maxReps / 100)).round();
-                return LineTooltipItem(
-                  'Reps: $actualReps',
-                  const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold, fontSize: 13),
-                );
-              }
-            }).toList();
-          },
-        ),
       ),
       lineBarsData: [
         // Accuracy Line (Orange)
         LineChartBarData(
-          spots: _data.asMap().entries.map((entry) {
-            return FlSpot(entry.key.toDouble(), entry.value.averageScore);
-          }).toList(),
+          spots: _data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.averageScore)).toList(),
           isCurved: true,
           color: Colors.orange,
-          barWidth: 2.5,
-          isStrokeCapRound: true,
+          barWidth: 3,
           dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(
-            show: true,
-            color: Colors.orange.withOpacity(0.05),
-          ),
+          belowBarData: BarAreaData(show: true, color: Colors.orange.withOpacity(0.1)),
         ),
-        // Reps Line (Cyan)
+        // Repetitions Line (Cyan)
         LineChartBarData(
-          spots: _data.asMap().entries.map((entry) {
-            double scaledReps = (entry.value.totalReps / _maxReps) * 100;
-            return FlSpot(entry.key.toDouble(), scaledReps);
-          }).toList(),
+          spots: _data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), (e.value.totalReps / _maxReps) * 100)).toList(),
           isCurved: true,
           color: Colors.cyan,
-          barWidth: 2.5,
-          isStrokeCapRound: true,
+          barWidth: 3,
           dotData: const FlDotData(show: false),
+          belowBarData: BarAreaData(show: true, color: Colors.cyan.withOpacity(0.1)),
         ),
       ],
     );
