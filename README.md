@@ -1,4 +1,4 @@
-# physICtecK
+# VisionForm
 
 An advanced, real-time AI fitness and nutrition companion engineered to optimize workout form precision and personalize diet plan generation. Powered by high-speed device-level computer vision via MediaPipe for real-time skeletal orientation mapping alongside a resilient, multi-API AI engine that orchestrates dynamic meal recommendations. This application represents team **VisionForm's** exploration of combining cutting-edge edge computation with intelligent cloud-based LLM orchestration to provide a highly stable, interactive, and fault-tolerant health tracking platform.
 
@@ -10,11 +10,11 @@ As the team at **VisionForm** observed during initial user evaluations:
 
 > "Fitness isn't just about counting repetitions blindly, and nutrition isn't about scanning a static food spreadsheet. True physical transformation happens when real-time tracking accuracy meets highly responsive, reliable intelligence that stays active—whether you are in a premium gym environment or a remote offline space."
 
-This core vision shaped the foundation of **physICtecK**. We didn't want to construct just another simple tracking application. Instead, we designed a resilient digital ecosystem where real-time MediaPipe computer vision analyzes physical performance, while a multi-API waterfall pipeline crafts dietary blueprints, supported by a specialized local persistence architecture that guarantees zero runtime failure.
+This core vision shaped the foundation of **VisionForm**. We didn't want to construct just another simple tracking application. Instead, we designed a resilient digital ecosystem where real-time MediaPipe computer vision analyzes physical performance, while a multi-API waterfall pipeline crafts dietary blueprints, supported by a specialized local persistence architecture that guarantees zero runtime failure.
 
 ## Overview
 
-physICtecK is a Flutter-driven production-grade mobile application combining high-frequency edge pose estimation with adaptive backend routing. The application leverages custom real-time camera tracking streams to map skeletal landmarks, analyze motion trajectories (such as specific joint angle flexions in squats), count clean repetitions, and log detailed fault feedback records. Complementing the motion engine is a fully responsive diet tracking system featuring multi-database synchronization, contextual macro breakdown summaries, historical progression time-series graphs, and a resilient multi-API intelligence layout built to safeguard system stability during presentations and real-world deployment.
+VisionForm is a Flutter-driven production-grade mobile application combining high-frequency edge pose estimation with adaptive backend routing. The application leverages custom real-time camera tracking streams to map skeletal landmarks, analyze motion trajectories (such as specific joint angle flexions in squats), count clean repetitions, and log detailed fault feedback records. Complementing the motion engine is a fully responsive diet tracking system featuring multi-database synchronization, contextual macro breakdown summaries, historical progression time-series graphs, and a resilient multi-API intelligence layout built to safeguard system stability during presentations and real-world deployment.
 
 **Key Architectural Highlights:**
 * **Resilient Manual Entry Interface:** To guarantee zero permission-related crashes or hardware incompatibilities during live evaluations, the diet ingestion UI utilizes a highly responsive manual text-input system with real-time chip generation, bypassing the need for volatile camera hardware access while maintaining a premium user experience.
@@ -95,8 +95,8 @@ To ensure high system availability and zero downtime during performance evaluati
 
 1. **Clone the codebase path repository:**
    ```bash
-   git clone https://github.com/Cuoqqum11/physICtecK.git
-   cd physICtecK
+   git clone https://github.com/Cuoqqum11/VisionForm.git
+   cd VisionForm
    git checkout Mimi
    ```
 
@@ -123,4 +123,4 @@ To ensure high system availability and zero downtime during performance evaluati
    ```
 
 ---
-*physICtecK by VisionForm: Pioneering structural computer vision accuracy alongside zero-failure AI resilience engineering.*
+*VisionForm by VisionForm: Pioneering structural computer vision accuracy alongside zero-failure AI resilience engineering.*
